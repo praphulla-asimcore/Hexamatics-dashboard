@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/zoho/refresh-cache",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
