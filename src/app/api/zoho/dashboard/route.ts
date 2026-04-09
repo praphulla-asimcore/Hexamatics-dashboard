@@ -1,29 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCachedGroupSummary } from '@/lib/cache'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { getCachedDashboard } from '@/lib/cache'
+import type { PeriodDef } from '@/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   try {
     const { searchParams } = new URL(req.url)
-    const year = parseInt(searchParams.get('year') || '2026')
-    const monthsParam = searchParams.get('months') || '1,2'
-    const months = monthsParam.split(',').map(Number)
+    const mode = (searchParams.get('mode') || 'month') as PeriodDef['mode']
+    const year = parseInt(searchParams.get('year') || String(new Date().getFullYear()))
+    const month = searchParams.get('month') ? parseInt(searchParams.get('month')!) : undefined
+    const quarter = searchParams.get('quarter')
+      ? (parseInt(searchParams.get('quarter')!) as 1 | 2 | 3 | 4)
+      : undefined
     const forceRefresh = searchParams.get('refresh') === 'true'
 
-    const data = await getCachedGroupSummary(year, months, forceRefresh)
+    const period: PeriodDef = { mode, year, month, quarter }
+    const data = await getCachedDashboard(period, forceRefresh)
 
     return NextResponse.json(data, {
-      headers: {
-        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
-      },
+      headers: { 'Cache-Control': 'private, max-age=300' },
     })
   } catch (err: any) {
     console.error('Dashboard API error:', err)
-    return NextResponse.json(
-      { error: err.message || 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
   }
 }

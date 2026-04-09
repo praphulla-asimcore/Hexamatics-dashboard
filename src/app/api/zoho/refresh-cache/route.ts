@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCachedGroupSummary } from '@/lib/cache'
+import { getCachedDashboard, invalidateCache } from '@/lib/cache'
+import { getDefaultPeriod } from '@/lib/zoho-data'
 
 export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
-  // Verify this is a Vercel cron call (or our own secret)
   const authHeader = req.headers.get('authorization')
   const expected = `Bearer ${process.env.CRON_SECRET}`
 
@@ -13,14 +13,17 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    console.log('[Cron] Refreshing Zoho Books cache...')
-    const data = await getCachedGroupSummary(2026, [1, 2], true)
+    console.log('[Cron] Refreshing dashboard cache...')
+    const period = getDefaultPeriod()
+    invalidateCache(period)
+    const data = await getCachedDashboard(period, true)
 
     return NextResponse.json({
       ok: true,
       refreshedAt: data.lastRefreshed,
+      period: data.periodLabel,
       entitiesLoaded: data.entities.length,
-      groupRevenueMyr: data.group.ytd,
+      groupRevenueMyr: data.group.totalMyr,
     })
   } catch (err: any) {
     console.error('[Cron] Cache refresh failed:', err)

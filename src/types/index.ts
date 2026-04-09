@@ -6,7 +6,7 @@ export interface OrgConfig {
   short: string
   currency: string
   country: string
-  fxToMyr: number // indicative rate to MYR
+  fxToMyr: number
 }
 
 // ─── Zoho API types ───────────────────────────────────────────────────────────
@@ -30,24 +30,45 @@ export interface ZohoTokenResponse {
   token_type: string
 }
 
-// ─── Dashboard Data ────────────────────────────────────────────────────────────
+// ─── Period definitions ───────────────────────────────────────────────────────
+
+export type PeriodMode = 'month' | 'quarter' | 'ytd'
+
+export interface PeriodDef {
+  mode: PeriodMode
+  year: number
+  month?: number           // 1–12 for mode='month'
+  quarter?: 1 | 2 | 3 | 4 // for mode='quarter'
+  // ytd: Jan to last complete month of year
+}
+
+// ─── Financial data types ─────────────────────────────────────────────────────
 
 export interface PeriodSummary {
   count: number
-  total: number         // local currency
+  total: number       // local currency
   collected: number
   outstanding: number
-  totalMyr: number      // MYR equivalent
+  totalMyr: number    // MYR equivalent
   statusBreakdown: Record<string, number>
 }
 
-export interface EntitySummary {
-  org: OrgConfig
-  jan: PeriodSummary
-  feb: PeriodSummary
-  ytd: PeriodSummary
-  arAging: ArAging
-  topCustomers: TopCustomer[]
+export interface MonthDataPoint {
+  year: number
+  month: number       // 1–12
+  totalLocal: number
+  totalMyr: number
+  collected: number
+  outstanding: number
+  count: number
+}
+
+export interface FinancialRatios {
+  collectionRate: number    // 0–100 (%)
+  dso: number               // days sales outstanding
+  overdueRatio: number      // 0–100 (overdue AR / total AR)
+  topCustomerConc: number   // 0–100 (top customer / total revenue)
+  avgInvoiceValue: number   // local currency
 }
 
 export interface ArAging {
@@ -65,23 +86,62 @@ export interface TopCustomer {
   invoiceCount: number
 }
 
-export interface GroupSummary {
-  entities: EntitySummary[]
-  group: {
-    jan: number   // MYR
-    feb: number
-    ytd: number
-    outstanding: number
-    collectionRate: number
-  }
-  lastRefreshed: string  // ISO timestamp
-  dateRange: {
-    from: string
-    to: string
-  }
+export interface EntitySummary {
+  org: OrgConfig
+  period: PeriodSummary
+  comparison?: PeriodSummary  // previous period for MoM / QoQ
+  arAging: ArAging
+  topCustomers: TopCustomer[]
+  ratios: FinancialRatios
+  monthlyTrend: MonthDataPoint[]  // up to 12 months ending at period
 }
 
+export interface GroupSummary {
+  totalMyr: number
+  collectedMyr: number
+  outstandingMyr: number
+  collectionRate: number
+  invoiceCount: number
+  comparisonTotalMyr?: number
+  comparisonCollectionRate?: number
+}
+
+export interface DashboardData {
+  entities: EntitySummary[]
+  group: GroupSummary
+  periodLabel: string
+  comparisonLabel: string
+  lastRefreshed: string
+  dateRange: { from: string; to: string }
+}
+
+// ─── Auth types ───────────────────────────────────────────────────────────────
+
+export interface AppUser {
+  id: string
+  email: string
+  name: string
+  role: 'admin' | 'viewer'
+  passwordHash: string
+  createdAt: string
+}
+
+export interface InviteToken {
+  token: string
+  email: string
+  name: string
+  role: 'admin' | 'viewer'
+  expiresAt: string
+  invitedBy: string
+}
+
+export interface UsersStore {
+  users: AppUser[]
+  invites: InviteToken[]
+}
+
+// Kept for legacy cache compat
 export interface CacheEntry {
-  data: GroupSummary
-  cachedAt: number  // epoch ms
+  data: DashboardData
+  cachedAt: number
 }

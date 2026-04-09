@@ -7,27 +7,25 @@ import type { EntitySummary } from '@/types'
 ChartJS.register(ArcElement, Tooltip)
 
 const STATUS_COLORS: Record<string, string> = {
-  paid: '#16a34a',
-  overdue: '#dc2626',
-  sent: '#2563eb',
-  draft: '#9ca3af',
-  void: '#6b7280',
-  partially_paid: '#d97706',
-  viewed: '#7c3aed',
-  approved: '#0891b2',
+  paid:           '#10b981',
+  overdue:        '#ef4444',
+  sent:           '#8B18E8',
+  draft:          '#6b7280',
+  void:           '#374151',
+  partially_paid: '#f59e0b',
+  viewed:         '#C219A0',
+  approved:       '#3b82f6',
 }
 
-interface Props {
-  entities: EntitySummary[]
-}
+interface Props { entities: EntitySummary[] }
 
 export function StatusDonutChart({ entities }: Props) {
   const agg: Record<string, number> = {}
-  entities.forEach((e) => {
-    Object.entries(e.ytd.statusBreakdown).forEach(([s, c]) => {
+  entities.forEach((e) =>
+    Object.entries(e.period.statusBreakdown).forEach(([s, c]) => {
       agg[s] = (agg[s] || 0) + c
     })
-  })
+  )
 
   const labels = Object.keys(agg)
   const values = Object.values(agg)
@@ -36,7 +34,7 @@ export function StatusDonutChart({ entities }: Props) {
 
   return (
     <div className="flex items-center gap-6">
-      <div className="w-36 h-36 flex-shrink-0">
+      <div className="w-32 h-32 flex-shrink-0">
         <Doughnut
           data={{
             labels,
@@ -45,7 +43,7 @@ export function StatusDonutChart({ entities }: Props) {
           options={{
             responsive: true,
             maintainAspectRatio: true,
-            cutout: '62%',
+            cutout: '65%',
             plugins: {
               legend: { display: false },
               tooltip: {
@@ -62,15 +60,12 @@ export function StatusDonutChart({ entities }: Props) {
         {labels.map((s, i) => (
           <div key={s} className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
-              <span
-                className="w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                style={{ background: colors[i] }}
-              />
-              <span className="text-gray-600 capitalize">{s.replace('_', ' ')}</span>
+              <span className="w-2 h-2 rounded-sm flex-shrink-0" style={{ background: colors[i] }} />
+              <span className="text-gray-400 capitalize">{s.replace('_', ' ')}</span>
             </div>
             <div className="flex items-center gap-2 tabular-nums">
-              <span className="text-gray-900 font-medium">{values[i]}</span>
-              <span className="text-gray-400">{((values[i] / total) * 100).toFixed(0)}%</span>
+              <span className="text-white font-medium">{values[i]}</span>
+              <span className="text-gray-600">{((values[i] / total) * 100).toFixed(0)}%</span>
             </div>
           </div>
         ))}

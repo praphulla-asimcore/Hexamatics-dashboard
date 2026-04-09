@@ -1,25 +1,19 @@
-/**
- * Simple cache layer.
- * - In development: in-memory Map
- * - In Vercel production: uses Next.js unstable_cache + fetch revalidation
- *
- * TTL: 30 minutes (matches cron schedule)
- */
-
-import { fetchGroupSummary } from './zoho-data'
-import type { GroupSummary } from '@/types'
+import { fetchDashboard, getPeriodLabel } from './zoho-data'
+import type { DashboardData, PeriodDef } from '@/types'
 
 const CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
 
-// In-memory fallback for dev / single-instance
-const memCache = new Map<string, { data: GroupSummary; at: number }>()
+const memCache = new Map<string, { data: DashboardData; at: number }>()
 
-export async function getCachedGroupSummary(
-  year = 2026,
-  months = [1, 2],
+function periodKey(period: PeriodDef): string {
+  return `${period.mode}_${period.year}_${period.month ?? ''}_${period.quarter ?? ''}`
+}
+
+export async function getCachedDashboard(
+  period: PeriodDef,
   forceRefresh = false
-): Promise<GroupSummary> {
-  const key = `group_${year}_${months.join('_')}`
+): Promise<DashboardData> {
+  const key = periodKey(period)
   const now = Date.now()
   const cached = memCache.get(key)
 
@@ -27,12 +21,25 @@ export async function getCachedGroupSummary(
     return cached.data
   }
 
-  const data = await fetchGroupSummary(year, months)
+  const data = await fetchDashboard(period, true)
   memCache.set(key, { data, at: now })
   return data
 }
 
-export async function invalidateCache(year = 2026, months = [1, 2]) {
-  const key = `group_${year}_${months.join('_')}`
-  memCache.delete(key)
+export function invalidateCache(period?: PeriodDef) {
+  if (period) {
+    memCache.delete(periodKey(period))
+  } else {
+    memCache.clear()
+  }
+}
+
+// Legacy compat for old cron route
+export async function getCachedGroupSummary(
+  year = 2026,
+  months = [1, 2],
+  forceRefresh = false
+): Promise<DashboardData> {
+  const period: PeriodDef = { mode: 'month', year, month: months[months.length - 1] }
+  return getCachedDashboard(period, forceRefresh)
 }
