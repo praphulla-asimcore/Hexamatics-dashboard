@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getCachedDashboard } from '@/lib/cache'
-import type { PeriodDef } from '@/types'
+import type { PeriodDef, ComparisonMode } from '@/types'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,9 +21,13 @@ export async function GET(req: NextRequest) {
     const quarter = searchParams.get('quarter')
       ? (parseInt(searchParams.get('quarter')!) as 1 | 2 | 3 | 4)
       : undefined
+    const half = searchParams.get('half')
+      ? (parseInt(searchParams.get('half')!) as 1 | 2)
+      : undefined
+    const comparison = (searchParams.get('comparison') || 'previous') as ComparisonMode
     const forceRefresh = searchParams.get('refresh') === 'true'
 
-    const period: PeriodDef = { mode, year, month, quarter }
+    const period: PeriodDef = { mode, year, month, quarter, half, comparison }
     const data = await getCachedDashboard(period, forceRefresh)
 
     return NextResponse.json(data, {

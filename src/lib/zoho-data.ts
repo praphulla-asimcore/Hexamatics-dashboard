@@ -12,13 +12,16 @@ import type {
   MonthDataPoint,
   FinancialRatios,
   GroupSummary,
+  AnnualEntityRow,
+  AnnualYearData,
 } from '@/types'
 import { differenceInDays, parseISO } from 'date-fns'
 
 // ─── Period helpers ───────────────────────────────────────────────────────────
 
 export function getPeriodDateRange(period: PeriodDef): { from: string; to: string } {
-  const { mode, year, month, quarter } = period
+  const { mode, year, month, quarter, half } = period
+  const now = new Date()
 
   if (mode === 'month' && month) {
     const from = `${year}-${String(month).padStart(2, '0')}-01`
@@ -36,11 +39,39 @@ export function getPeriodDateRange(period: PeriodDef): { from: string; to: strin
     return { from, to }
   }
 
-  // YTD: Jan 1 → last complete month (or Dec for past years)
-  const now = new Date()
+  if (mode === 'half') {
+    const h = half ?? 1
+    const startMonth = h === 1 ? 1 : 7
+    const endMonth = h === 1 ? 6 : 12
+    const from = `${year}-${String(startMonth).padStart(2, '0')}-01`
+    const lastDay = new Date(year, endMonth, 0).getDate()
+    const to = `${year}-${String(endMonth).padStart(2, '0')}-${lastDay}`
+    return { from, to }
+  }
+
+  if (mode === 'year') {
+    const from = `${year}-01-01`
+    const endMonth = year < now.getFullYear() ? 12 : Math.max(now.getMonth() + 1, 1)
+    const lastDay = new Date(year, endMonth, 0).getDate()
+    const to = `${year}-${String(endMonth).padStart(2, '0')}-${lastDay}`
+    return { from, to }
+  }
+
+  if (mode === 'rolling12') {
+    // Trailing 12 months ending at end of last complete month
+    const endM = now.getMonth() === 0 ? 12 : now.getMonth() // last complete month (0-indexed month = previous month)
+    const endY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+    const lastDay = new Date(endY, endM, 0).getDate()
+    const to = `${endY}-${String(endM).padStart(2, '0')}-${lastDay}`
+    const startDate = new Date(endY, endM - 12, 1)
+    const from = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`
+    return { from, to }
+  }
+
+  // YTD: Jan 1 → last complete month (or Dec 31 for past years)
   const endMonth = year < now.getFullYear()
     ? 12
-    : Math.max(now.getMonth(), 1) // getMonth() is 0-indexed; if Jan, show Jan
+    : Math.max(now.getMonth(), 1)
   const from = `${year}-01-01`
   const lastDay = new Date(year, endMonth, 0).getDate()
   const to = `${year}-${String(endMonth).padStart(2, '0')}-${lastDay}`
@@ -52,6 +83,9 @@ export function getPeriodLabel(period: PeriodDef): string {
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   if (period.mode === 'month' && period.month) return `${MONTHS[period.month - 1]} ${period.year}`
   if (period.mode === 'quarter' && period.quarter) return `Q${period.quarter} ${period.year}`
+  if (period.mode === 'half') return `H${period.half ?? 1} ${period.year}`
+  if (period.mode === 'year') return `FY ${period.year}`
+  if (period.mode === 'rolling12') return 'Rolling 12M'
   return `YTD ${period.year}`
 }
 
@@ -68,22 +102,62 @@ export function getPreviousPeriod(period: PeriodDef): PeriodDef {
       ? { mode: 'quarter', year: period.year - 1, quarter: 4 }
       : { mode: 'quarter', year: period.year, quarter: (q - 1) as 1 | 2 | 3 | 4 }
   }
+  if (period.mode === 'half') {
+    const h = period.half ?? 1
+    return h === 1
+      ? { mode: 'half', year: period.year - 1, half: 2 }
+      : { mode: 'half', year: period.year, half: 1 }
+  }
+  if (period.mode === 'year') {
+    return { mode: 'year', year: period.year - 1 }
+  }
+  if (period.mode === 'rolling12') {
+    // Previous rolling12 = same window shifted back 12 months
+    // We encode this as year-1 and handle in getPeriodDateRange for rolling12 by computing from "now - 12 months"
+    // For comparison, we create a synthetic rolling12 for previous year
+    return { mode: 'rolling12', year: period.year - 1, _rolling12Offset: 12 } as any
+  }
   return { mode: 'ytd', year: period.year - 1 }
+}
+
+export function getYoYPeriod(period: PeriodDef): PeriodDef {
+  return { ...period, year: period.year - 1 }
+}
+
+export function getComparisonPeriod(period: PeriodDef): PeriodDef | null {
+  const compMode = period.comparison ?? 'previous'
+  if (compMode === 'none') return null
+  if (compMode === 'yoy') return getYoYPeriod(period)
+  return getPreviousPeriod(period)
 }
 
 export function getDefaultPeriod(): PeriodDef {
   const now = new Date()
-  const month = now.getMonth() + 1 // 1-indexed
-  // Default to current month; if it's the 1st few days, show previous month
-  return { mode: 'month', year: now.getFullYear(), month }
+  const month = now.getMonth() + 1
+  return { mode: 'month', year: now.getFullYear(), month, comparison: 'previous' }
 }
 
 function getLast12MonthsRange(period: PeriodDef): { from: string; to: string } {
   const { to } = getPeriodDateRange(period)
   const toDate = new Date(to)
-  // 12 months back from end of period
   const fromDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1)
   const from = `${fromDate.getFullYear()}-${String(fromDate.getMonth() + 1).padStart(2, '0')}-01`
+  return { from, to }
+}
+
+// For rolling12 comparison (shifted back 12 months), compute an offset range
+function getRolling12ComparisonRange(): { from: string; to: string } {
+  const now = new Date()
+  const endM = now.getMonth() === 0 ? 12 : now.getMonth()
+  const endY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+  // End = 12 months before the current rolling12 end
+  const compEndDate = new Date(endY, endM - 12, 0) // last day of month 12 months prior
+  const compEndYear = compEndDate.getFullYear()
+  const compEndMonth = compEndDate.getMonth() + 1
+  const lastDay = new Date(compEndYear, compEndMonth, 0).getDate()
+  const to = `${compEndYear}-${String(compEndMonth).padStart(2, '0')}-${lastDay}`
+  const startDate = new Date(compEndYear, compEndMonth - 12, 1)
+  const from = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-01`
   return { from, to }
 }
 
@@ -115,7 +189,7 @@ async function fetchOrgInvoices(
     const hasOlder = invoices.some((inv) => inv.date < from)
     hasMore = !hasOlder && (data.page_context?.has_more_page ?? false)
     page++
-    if (page > 30) break
+    if (page > 50) break
   }
 
   return allInvoices
@@ -131,20 +205,12 @@ function buildPeriodSummary(invoices: ZohoInvoice[], fxToMyr: number): PeriodSum
   invoices.forEach((inv) => {
     statusBreakdown[inv.status] = (statusBreakdown[inv.status] || 0) + 1
   })
-  return {
-    count: invoices.length,
-    total,
-    collected,
-    outstanding,
-    totalMyr: total * fxToMyr,
-    statusBreakdown,
-  }
+  return { count: invoices.length, total, collected, outstanding, totalMyr: total * fxToMyr, statusBreakdown }
 }
 
 function buildArAging(invoices: ZohoInvoice[]): ArAging {
   const today = new Date()
   const aging: ArAging = { current: 0, days1to30: 0, days31to60: 0, days61to90: 0, days90plus: 0 }
-
   invoices
     .filter((inv) => inv.balance > 0)
     .forEach((inv) => {
@@ -156,7 +222,6 @@ function buildArAging(invoices: ZohoInvoice[]): ArAging {
       else if (daysPast <= 90) aging.days61to90 += inv.balance
       else aging.days90plus += inv.balance
     })
-
   return aging
 }
 
@@ -164,12 +229,7 @@ function buildTopCustomers(invoices: ZohoInvoice[]): TopCustomer[] {
   const map: Record<string, TopCustomer> = {}
   invoices.forEach((inv) => {
     if (!map[inv.customer_name]) {
-      map[inv.customer_name] = {
-        name: inv.customer_name,
-        total: 0,
-        outstanding: 0,
-        invoiceCount: 0,
-      }
+      map[inv.customer_name] = { name: inv.customer_name, total: 0, outstanding: 0, invoiceCount: 0 }
     }
     map[inv.customer_name].total += inv.total
     map[inv.customer_name].outstanding += inv.balance
@@ -192,7 +252,6 @@ function buildRatios(
   const top1 = topCustomers.length > 0 ? topCustomers[0].total : 0
   const topCustomerConc = period.total > 0 ? (top1 / period.total) * 100 : 0
   const avgInvoiceValue = period.count > 0 ? period.total / period.count : 0
-
   return { collectionRate, dso, overdueRatio, topCustomerConc, avgInvoiceValue }
 }
 
@@ -224,7 +283,6 @@ async function fetchEntityData(
   trendRange: { from: string; to: string },
   daysInPeriod: number
 ): Promise<EntitySummary> {
-  // Determine the widest date range needed
   const wideFrom = [
     periodRange.from,
     comparisonRange?.from ?? periodRange.from,
@@ -263,15 +321,24 @@ async function fetchEntityData(
   return { org, period, comparison, arAging, topCustomers, ratios, monthlyTrend }
 }
 
-// ─── Main export ──────────────────────────────────────────────────────────────
+// ─── Main dashboard fetch ─────────────────────────────────────────────────────
 
 export async function fetchDashboard(
   period: PeriodDef,
   includeComparison = true
 ): Promise<DashboardData> {
   const periodRange = getPeriodDateRange(period)
-  const prevPeriod = getPreviousPeriod(period)
-  const comparisonRange = includeComparison ? getPeriodDateRange(prevPeriod) : null
+  const compPeriod = includeComparison ? getComparisonPeriod(period) : null
+
+  let comparisonRange: { from: string; to: string } | null = null
+  if (compPeriod) {
+    if (period.mode === 'rolling12' && (period as any)._rolling12Offset) {
+      comparisonRange = getRolling12ComparisonRange()
+    } else {
+      comparisonRange = getPeriodDateRange(compPeriod)
+    }
+  }
+
   const trendRange = getLast12MonthsRange(period)
 
   const fromDate = new Date(periodRange.from)
@@ -310,14 +377,94 @@ export async function fetchDashboard(
     comparisonCollectionRate,
   }
 
+  const compLabel = compPeriod ? getPeriodLabel(compPeriod) : ''
+
   return {
     entities,
     group,
     periodLabel: getPeriodLabel(period),
-    comparisonLabel: includeComparison ? getPeriodLabel(prevPeriod) : '',
+    comparisonLabel: compLabel,
     lastRefreshed: new Date().toISOString(),
     dateRange: periodRange,
   }
+}
+
+// ─── Annual multi-year fetch ──────────────────────────────────────────────────
+
+export async function fetchAnnualData(fromYear = 2023): Promise<AnnualYearData[]> {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const wideFrom = `${fromYear}-01-01`
+  const currentMonth = now.getMonth() + 1
+  const lastDay = new Date(currentYear, currentMonth, 0).getDate()
+  const wideTo = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${lastDay}`
+
+  const years: number[] = []
+  for (let y = fromYear; y <= currentYear; y++) years.push(y)
+
+  // Fetch all invoices for each org in one wide call
+  const entityResults = await Promise.all(
+    ORGS.map(async (org) => {
+      let invoices: ZohoInvoice[] = []
+      try {
+        invoices = await fetchOrgInvoices(org.id, wideFrom, wideTo)
+      } catch (err) {
+        console.error(`Annual fetch failed for ${org.name}:`, err)
+      }
+      return { org, invoices }
+    })
+  )
+
+  return years.map((year) => {
+    const yearFrom = `${year}-01-01`
+    const yearTo = year < currentYear
+      ? `${year}-12-31`
+      : wideTo
+    const daysInYear = year < currentYear
+      ? 365
+      : differenceInDays(new Date(yearTo), new Date(yearFrom)) + 1
+
+    const entities: AnnualEntityRow[] = entityResults.map(({ org, invoices }) => {
+      const yearInvoices = invoices.filter(
+        (inv) => inv.date >= yearFrom && inv.date <= yearTo
+      )
+      const total = yearInvoices.reduce((s, inv) => s + inv.total, 0)
+      const outstanding = yearInvoices.reduce((s, inv) => s + inv.balance, 0)
+      const collected = total - outstanding
+      const dso = total > 0 ? (outstanding / total) * daysInYear : 0
+
+      return {
+        orgId: org.id,
+        orgShort: org.short,
+        currency: org.currency,
+        fxToMyr: org.fxToMyr,
+        totalLocal: total,
+        totalMyr: total * org.fxToMyr,
+        collectedMyr: collected * org.fxToMyr,
+        outstandingMyr: outstanding * org.fxToMyr,
+        count: yearInvoices.length,
+        collectionRate: total > 0 ? (collected / total) * 100 : 0,
+        dso,
+      }
+    })
+
+    const groupTotalMyr = entities.reduce((s, e) => s + e.totalMyr, 0)
+    const groupCollectedMyr = entities.reduce((s, e) => s + e.collectedMyr, 0)
+    const groupOutstandingMyr = entities.reduce((s, e) => s + e.outstandingMyr, 0)
+    const groupCount = entities.reduce((s, e) => s + e.count, 0)
+
+    return {
+      year,
+      entities,
+      group: {
+        totalMyr: groupTotalMyr,
+        collectedMyr: groupCollectedMyr,
+        outstandingMyr: groupOutstandingMyr,
+        collectionRate: groupTotalMyr > 0 ? (groupCollectedMyr / groupTotalMyr) * 100 : 0,
+        count: groupCount,
+      },
+    }
+  })
 }
 
 // Legacy compat

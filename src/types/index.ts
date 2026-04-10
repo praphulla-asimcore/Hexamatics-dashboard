@@ -16,7 +16,7 @@ export interface ZohoInvoice {
   invoice_number: string
   customer_name: string
   status: 'paid' | 'overdue' | 'sent' | 'draft' | 'void' | 'partially_paid' | 'viewed' | 'approved'
-  date: string        // yyyy-mm-dd
+  date: string
   due_date: string
   total: number
   balance: number
@@ -32,30 +32,42 @@ export interface ZohoTokenResponse {
 
 // ─── Period definitions ───────────────────────────────────────────────────────
 
-export type PeriodMode = 'month' | 'quarter' | 'ytd'
+export type PeriodMode =
+  | 'month'      // single month
+  | 'quarter'    // Q1–Q4
+  | 'half'       // H1 (Jan–Jun) or H2 (Jul–Dec)
+  | 'year'       // full calendar year
+  | 'ytd'        // Jan to current/last month
+  | 'rolling12'  // trailing 12 months
+
+export type ComparisonMode =
+  | 'previous'   // immediately preceding period
+  | 'yoy'        // same period prior year
+  | 'none'       // no comparison
 
 export interface PeriodDef {
   mode: PeriodMode
   year: number
-  month?: number           // 1–12 for mode='month'
-  quarter?: 1 | 2 | 3 | 4 // for mode='quarter'
-  // ytd: Jan to last complete month of year
+  month?: number           // 1–12 (mode='month')
+  quarter?: 1 | 2 | 3 | 4 // (mode='quarter')
+  half?: 1 | 2             // (mode='half')
+  comparison?: ComparisonMode
 }
 
 // ─── Financial data types ─────────────────────────────────────────────────────
 
 export interface PeriodSummary {
   count: number
-  total: number       // local currency
+  total: number
   collected: number
   outstanding: number
-  totalMyr: number    // MYR equivalent
+  totalMyr: number
   statusBreakdown: Record<string, number>
 }
 
 export interface MonthDataPoint {
   year: number
-  month: number       // 1–12
+  month: number
   totalLocal: number
   totalMyr: number
   collected: number
@@ -64,15 +76,15 @@ export interface MonthDataPoint {
 }
 
 export interface FinancialRatios {
-  collectionRate: number    // 0–100 (%)
-  dso: number               // days sales outstanding
-  overdueRatio: number      // 0–100 (overdue AR / total AR)
-  topCustomerConc: number   // 0–100 (top customer / total revenue)
-  avgInvoiceValue: number   // local currency
+  collectionRate: number
+  dso: number
+  overdueRatio: number
+  topCustomerConc: number
+  avgInvoiceValue: number
 }
 
 export interface ArAging {
-  current: number       // not yet due
+  current: number
   days1to30: number
   days31to60: number
   days61to90: number
@@ -89,11 +101,11 @@ export interface TopCustomer {
 export interface EntitySummary {
   org: OrgConfig
   period: PeriodSummary
-  comparison?: PeriodSummary  // previous period for MoM / QoQ
+  comparison?: PeriodSummary
   arAging: ArAging
   topCustomers: TopCustomer[]
   ratios: FinancialRatios
-  monthlyTrend: MonthDataPoint[]  // up to 12 months ending at period
+  monthlyTrend: MonthDataPoint[]
 }
 
 export interface GroupSummary {
@@ -113,6 +125,34 @@ export interface DashboardData {
   comparisonLabel: string
   lastRefreshed: string
   dateRange: { from: string; to: string }
+}
+
+// ─── Annual analytics ─────────────────────────────────────────────────────────
+
+export interface AnnualEntityRow {
+  orgId: string
+  orgShort: string
+  currency: string
+  fxToMyr: number
+  totalLocal: number
+  totalMyr: number
+  collectedMyr: number
+  outstandingMyr: number
+  count: number
+  collectionRate: number
+  dso: number
+}
+
+export interface AnnualYearData {
+  year: number
+  entities: AnnualEntityRow[]
+  group: {
+    totalMyr: number
+    collectedMyr: number
+    outstandingMyr: number
+    collectionRate: number
+    count: number
+  }
 }
 
 // ─── Auth types ───────────────────────────────────────────────────────────────
@@ -140,7 +180,6 @@ export interface UsersStore {
   invites: InviteToken[]
 }
 
-// Kept for legacy cache compat
 export interface CacheEntry {
   data: DashboardData
   cachedAt: number
