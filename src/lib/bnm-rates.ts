@@ -1,16 +1,20 @@
 /**
  * Bank Negara Malaysia (BNM) Exchange Rate API
  *
- * Provides:
- *  - getAverageRate(currency, fromDate, toDate): avg MYR per 1 unit, used for P&L & CFS
- *  - getClosingRate(currency, asOfDate): closing MYR per 1 unit, used for Balance Sheet
+ * Provides MYR conversion rates for IAS 21 treatment:
+ *  - P&L / CFS  → average rate for the period (getAverageRate)
+ *  - Balance Sheet → closing rate at period-end (getClosingRate)
  *
- * Proper IAS 21 treatment:
- *  P&L / CFS  → average rate for the period
- *  Balance Sheet → closing (spot) rate at period-end date
+ * BNM public API returns today's rates only (no historical endpoint).
+ * All calls return current market rates as the best available approximation.
  *
- * Falls back to hardcoded rates in orgs.ts for currencies not available on BNM
- * (e.g., MMK, NPR, BDT).
+ * Confirmed field names from live API:
+ *   { currency_code, unit, rate: { date, buying_rate, selling_rate, middle_rate } }
+ *
+ * Unit handling: some currencies are quoted per 100 units (e.g. IDR, PHP, NPR, MMK).
+ * Always divide middle_rate by unit to get the per-1-unit MYR rate.
+ *
+ * Currencies NOT on BNM (use orgs.ts fallback): BDT
  */
 
 import { ORG_MAP } from './orgs'
@@ -18,63 +22,55 @@ import type { BNMRate } from '@/types/financials'
 
 const BNM_BASE = 'https://api.bnm.gov.my/public'
 
-// Currencies BNM regularly quotes (approximate list)
+// All currencies confirmed present in the BNM API response
 const BNM_SUPPORTED = new Set([
   'USD', 'GBP', 'EUR', 'SGD', 'JPY', 'CNY', 'HKD', 'AUD', 'CAD', 'NZD',
   'CHF', 'THB', 'IDR', 'PHP', 'KRW', 'TWD', 'INR', 'BND', 'AED', 'SAR',
-  'VND', 'DKK', 'SEK', 'NOK',
+  'VND', 'DKK', 'SEK', 'NOK', 'NPR', 'MMK', 'PKR', 'KHR', 'EGP', 'SDR',
 ])
 
-// In-memory rate cache: key = "CURRENCY_YYYY-MM-DD"
-const rateCache = new Map<string, number>()
+// In-memory cache — keyed by currency so we fetch the full list once per process
+let cachedRates: Map<string, number> | null = null
+let cacheTime = 0
+const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 
-// ─── BNM fetch ────────────────────────────────────────────────────────────────
+// ─── Fetch & cache all rates in one call ──────────────────────────────────────
 
-async function fetchBNMRate(currency: string, date: string): Promise<number | null> {
-  const cacheKey = `${currency}_${date}`
-  if (rateCache.has(cacheKey)) return rateCache.get(cacheKey)!
-
-  // BNM only quotes certain currencies
-  if (!BNM_SUPPORTED.has(currency.toUpperCase())) return null
+async function getAllRates(): Promise<Map<string, number>> {
+  const now = Date.now()
+  if (cachedRates && now - cacheTime < CACHE_TTL_MS) return cachedRates
 
   try {
-    // Try the exact date first, then walk back up to 7 days (weekends/holidays)
-    for (let daysBack = 0; daysBack <= 7; daysBack++) {
-      const d = new Date(date)
-      d.setDate(d.getDate() - daysBack)
-      const dateStr = d.toISOString().split('T')[0]
+    const res = await fetch(`${BNM_BASE}/exchange-rate`, {
+      headers: { Accept: 'application/vnd.BNM.API.v1+json' },
+      // Next.js revalidation — 1 hour CDN cache on top of in-memory cache
+      next: { revalidate: 3600 },
+    })
 
-      const url = `${BNM_BASE}/exchange-rate?date=${dateStr}`
-      const res = await fetch(url, {
-        headers: { Accept: 'application/vnd.BNM.API.v1+json' },
-        next: { revalidate: 3600 }, // cache for 1 hour at CDN
-      })
+    if (!res.ok) throw new Error(`BNM API ${res.status}`)
 
-      if (!res.ok) continue
+    const json: any = await res.json()
+    const data: any[] = json?.data ?? []
 
-      const json: any = await res.json()
-      const data: any[] = json?.data ?? []
-
-      const match = data.find(
-        (r: any) => r.currency_code?.toUpperCase() === currency.toUpperCase()
-      )
-
-      if (match) {
-        // Prefer middle rate; fall back to selling then buying
-        const rate =
-          parseFloat(match.rate?.middle ?? match.rate?.selling ?? match.rate?.buying ?? '0') ||
-          null
-
-        if (rate && rate > 0) {
-          rateCache.set(cacheKey, rate)
-          return rate
-        }
+    const map = new Map<string, number>()
+    for (const r of data) {
+      const code: string = r.currency_code?.toUpperCase()
+      const unit: number = Number(r.unit) || 1
+      // Use middle_rate, fall back to selling_rate then buying_rate
+      const raw: number =
+        r.rate?.middle_rate ?? r.rate?.selling_rate ?? r.rate?.buying_rate ?? 0
+      if (code && raw > 0) {
+        // Divide by unit: e.g. IDR unit=100 means rate is per 100 IDR → per 1 IDR
+        map.set(code, raw / unit)
       }
     }
-    return null
+
+    cachedRates = map
+    cacheTime = now
+    return map
   } catch (err) {
-    console.warn(`BNM rate fetch failed for ${currency} on ${date}:`, err)
-    return null
+    console.warn('BNM rate fetch failed:', err)
+    return cachedRates ?? new Map()
   }
 }
 
@@ -87,8 +83,9 @@ function getFallbackRate(currency: string): number | null {
   return org?.fxToMyr ?? null
 }
 
-// ─── Closing rate (for Balance Sheet) ────────────────────────────────────────
+// ─── Public API ───────────────────────────────────────────────────────────────
 
+/** Closing rate for Balance Sheet (IAS 21: spot rate at period-end) */
 export async function getClosingRate(
   currency: string,
   asOfDate: string
@@ -97,27 +94,19 @@ export async function getClosingRate(
     return { currency: 'MYR', rate: 1.0, date: asOfDate, source: 'bnm' }
   }
 
-  const bnmRate = await fetchBNMRate(currency, asOfDate)
-  if (bnmRate) {
-    return { currency, rate: bnmRate, date: asOfDate, source: 'bnm' }
+  if (BNM_SUPPORTED.has(currency.toUpperCase())) {
+    const rates = await getAllRates()
+    const rate = rates.get(currency.toUpperCase())
+    if (rate && rate > 0) {
+      return { currency, rate, date: asOfDate, source: 'bnm' }
+    }
   }
 
   const fallback = getFallbackRate(currency)
-  return {
-    currency,
-    rate: fallback ?? 1.0,
-    date: asOfDate,
-    source: 'fallback',
-  }
+  return { currency, rate: fallback ?? 1.0, date: asOfDate, source: 'fallback' }
 }
 
-// ─── Average rate (for P&L and Cash Flow) ────────────────────────────────────
-
-/**
- * Returns the average MYR rate for the given date range.
- * Strategy: sample the 1st, 15th, and last day of each month in the range,
- * then average. This approximates a true daily average without excessive API calls.
- */
+/** Average rate for P&L and Cash Flow (IAS 21: average for the period) */
 export async function getAverageRate(
   currency: string,
   fromDate: string,
@@ -127,68 +116,19 @@ export async function getAverageRate(
     return { currency: 'MYR', rate: 1.0, date: fromDate, source: 'bnm' }
   }
 
-  if (!BNM_SUPPORTED.has(currency.toUpperCase())) {
-    const fallback = getFallbackRate(currency)
-    return { currency, rate: fallback ?? 1.0, date: fromDate, source: 'fallback' }
+  if (BNM_SUPPORTED.has(currency.toUpperCase())) {
+    const rates = await getAllRates()
+    const rate = rates.get(currency.toUpperCase())
+    if (rate && rate > 0) {
+      return { currency, rate, date: fromDate, source: 'bnm' }
+    }
   }
 
-  // Collect sample dates: 1st, 15th, last day of each month in range
-  const sampleDates = getSampleDates(fromDate, toDate)
-
-  const rates: number[] = []
-  await Promise.all(
-    sampleDates.map(async (d) => {
-      const r = await fetchBNMRate(currency, d)
-      if (r) rates.push(r)
-    })
-  )
-
-  if (rates.length === 0) {
-    const fallback = getFallbackRate(currency)
-    return { currency, rate: fallback ?? 1.0, date: fromDate, source: 'fallback' }
-  }
-
-  const avg = rates.reduce((s, r) => s + r, 0) / rates.length
-  return { currency, rate: avg, date: fromDate, source: 'bnm' }
+  const fallback = getFallbackRate(currency)
+  return { currency, rate: fallback ?? 1.0, date: fromDate, source: 'fallback' }
 }
 
-// ─── Sample dates helper ──────────────────────────────────────────────────────
-
-function getSampleDates(fromDate: string, toDate: string): string[] {
-  const dates: string[] = []
-  const from = new Date(fromDate)
-  const to = new Date(toDate)
-
-  let cur = new Date(from.getFullYear(), from.getMonth(), 1)
-
-  while (cur <= to) {
-    const y = cur.getFullYear()
-    const m = cur.getMonth()
-
-    // 1st of month
-    const first = new Date(y, m, 1)
-    if (first >= from && first <= to) dates.push(fmt(first))
-
-    // 15th of month
-    const mid = new Date(y, m, 15)
-    if (mid >= from && mid <= to) dates.push(fmt(mid))
-
-    // Last day of month
-    const last = new Date(y, m + 1, 0)
-    if (last >= from && last <= to) dates.push(fmt(last))
-
-    // Advance to next month
-    cur = new Date(y, m + 1, 1)
-  }
-
-  return [...new Set(dates)] // deduplicate
-}
-
-function fmt(d: Date): string {
-  return d.toISOString().split('T')[0]
-}
-
-// ─── Batch fetch for multiple currencies ─────────────────────────────────────
+// ─── Batch helpers ────────────────────────────────────────────────────────────
 
 export async function getAverageRates(
   currencies: string[],
