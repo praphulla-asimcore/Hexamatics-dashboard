@@ -3,19 +3,22 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import path from 'path'
 import type { AppUser, InviteToken, UsersStore } from '@/types'
 
-const USERS_FILE = path.join(process.cwd(), 'src/data/users.json')
+// /tmp is writable on Vercel; bundle path is read-only (initial seed only)
+const TMP_FILE = '/tmp/hexa-users.json'
+const BUNDLE_FILE = path.join(process.cwd(), 'src/data/users.json')
 
 function readStore(): UsersStore {
-  try {
-    if (existsSync(USERS_FILE)) {
-      return JSON.parse(readFileSync(USERS_FILE, 'utf-8'))
-    }
-  } catch {}
+  // Prefer /tmp (has any writes made this instance), fall back to bundle
+  for (const file of [TMP_FILE, BUNDLE_FILE]) {
+    try {
+      if (existsSync(file)) return JSON.parse(readFileSync(file, 'utf-8'))
+    } catch {}
+  }
   return { users: [], invites: [] }
 }
 
 function writeStore(store: UsersStore) {
-  writeFileSync(USERS_FILE, JSON.stringify(store, null, 2), 'utf-8')
+  writeFileSync(TMP_FILE, JSON.stringify(store, null, 2), 'utf-8')
 }
 
 // ─── Admin from env ───────────────────────────────────────────────────────────
