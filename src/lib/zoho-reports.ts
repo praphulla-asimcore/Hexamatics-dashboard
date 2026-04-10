@@ -303,17 +303,27 @@ async function fetchRawBS(orgId: string, asOfDate: string): Promise<any> {
 }
 
 function parseBSData(raw: any): BSData {
-  // Zoho BS likely returns: balance_sheet = [
-  //   { name: "Assets",      total: X, account_transactions: [
-  //       { name: "Current Assets",      total: X, account_transactions: [...] },
-  //       { name: "Fixed Assets",        total: X, account_transactions: [...] },
-  //   ]},
-  //   { name: "Liabilities", total: X, account_transactions: [
-  //       { name: "Current Liabilities", total: X, account_transactions: [...] },
-  //       { name: "Long Term ...",       total: X, account_transactions: [...] },
-  //   ]},
-  //   { name: "Equity",      total: X, account_transactions: [...] },
-  // ]
+  // Actual Zoho BS structure (confirmed via debug):
+  //   balance_sheet = [
+  //     { name: "Assets", total: X, account_transactions: [
+  //         { name: "Current Assets",    total: X, account_transactions: [...] },
+  //         { name: "Non Current Assets",total: 0 },
+  //         { name: "Fixed Assets",      total: X, account_transactions: [...] },
+  //         { name: "Other Assets",      total: X, account_transactions: [...] },
+  //     ]},
+  //     { name: "Liabilities & Equities", total: X, account_transactions: [
+  //         { name: "Liabilities", total: X, account_transactions: [
+  //             { name: "Current Liabilities",     total: X, account_transactions: [...] },
+  //             { name: "Non Current Liabilities", total: X, account_transactions: [...] },
+  //             { name: "Other Liabilities",       total: X, account_transactions: [...] },
+  //         ]},
+  //         { name: "Equities", total: X, account_transactions: [
+  //             { name: "Current Year Earnings", total: X },
+  //             { name: "Retained Earnings",     total: X },
+  //             { name: "Share capital",          total: X },
+  //         ]},
+  //     ]},
+  //   ]
 
   const sections: any[] = raw?.balance_sheet ?? []
 
@@ -326,33 +336,59 @@ function parseBSData(raw: any): BSData {
     )
   }
 
-  // ── Try new array format first ────────────────────────────────
   if (Array.isArray(sections) && sections.length > 0) {
-    const assetsSection = findSection('asset')
-    const liabSection   = findSection('liabilit')
-    const equitySection = findSection('equity')
-
+    // ── Assets ────────────────────────────────────────────────────
+    const assetsSection   = findSection('asset')
     const curAssetsCat    = findCat(assetsSection, 'current asset')
-    const fixedAssetsCat  = findCat(assetsSection, 'fixed') ?? findCat(assetsSection, 'non-current') ?? findCat(assetsSection, 'noncurrent')
+    const fixedAssetsCat  = findCat(assetsSection, 'fixed asset')
+    const nonCurAssetsCat = findCat(assetsSection, 'non current asset')
+      ?? findCat(assetsSection, 'noncurrent asset')
+    const otherAssetsCat  = findCat(assetsSection, 'other asset')
 
-    const currentAssets      = buildItems(curAssetsCat?.account_transactions ?? assetsSection?.account_transactions ?? [])
+    const currentAssets      = buildItems(curAssetsCat?.account_transactions ?? [])
     const totalCurrentAssets = parseNum(curAssetsCat?.total ?? 0)
-    const nonCurrentAssets   = buildItems(fixedAssetsCat?.account_transactions ?? [])
-    const totalNonCurrentAssets = parseNum(fixedAssetsCat?.total ?? 0)
-    const totalAssets        = parseNum(assetsSection?.total ?? totalCurrentAssets + totalNonCurrentAssets)
 
-    const curLiabCat   = findCat(liabSection, 'current liabilit')
-    const ltLiabCat    = findCat(liabSection, 'long term') ?? findCat(liabSection, 'non-current') ?? findCat(liabSection, 'noncurrent')
+    // Combine Fixed + Non Current + Other Assets into non-current bucket
+    const nonCurrentAssets = buildItems([
+      ...(fixedAssetsCat?.account_transactions ?? (fixedAssetsCat ? [fixedAssetsCat] : [])),
+      ...(nonCurAssetsCat?.account_transactions ?? (nonCurAssetsCat ? [nonCurAssetsCat] : [])),
+      ...(otherAssetsCat?.account_transactions ?? (otherAssetsCat ? [otherAssetsCat] : [])),
+    ])
+    const totalNonCurrentAssets =
+      parseNum(fixedAssetsCat?.total ?? 0) +
+      parseNum(nonCurAssetsCat?.total ?? 0) +
+      parseNum(otherAssetsCat?.total ?? 0)
+    const totalAssets = parseNum(assetsSection?.total ?? totalCurrentAssets + totalNonCurrentAssets)
 
-    const currentLiabilities      = buildItems(curLiabCat?.account_transactions ?? liabSection?.account_transactions ?? [])
+    // ── Liabilities & Equities ────────────────────────────────────
+    // Top-level section is "Liabilities & Equities"; drill in to find sub-sections
+    const liabEquitySection = findSection('liabilit') // matches "Liabilities & Equities"
+    const liabSection       = findCat(liabEquitySection, 'liabilit') ?? liabEquitySection
+    const equitySection     = findCat(liabEquitySection, 'equit') ?? findSection('equit')
+
+    const curLiabCat    = findCat(liabSection, 'current liabilit')
+    const nonCurLiabCat = findCat(liabSection, 'non current liabilit')
+      ?? findCat(liabSection, 'long term')
+    const otherLiabCat  = findCat(liabSection, 'other liabilit')
+
+    const currentLiabilities      = buildItems(curLiabCat?.account_transactions ?? [])
     const totalCurrentLiabilities = parseNum(curLiabCat?.total ?? 0)
-    const nonCurrentLiabilities   = buildItems(ltLiabCat?.account_transactions ?? [])
-    const totalNonCurrentLiabilities = parseNum(ltLiabCat?.total ?? 0)
-    const totalLiabilities        = parseNum(liabSection?.total ?? totalCurrentLiabilities + totalNonCurrentLiabilities)
+
+    const nonCurrentLiabilities = buildItems([
+      ...(nonCurLiabCat?.account_transactions ?? (nonCurLiabCat ? [nonCurLiabCat] : [])),
+      ...(otherLiabCat?.account_transactions ?? (otherLiabCat ? [otherLiabCat] : [])),
+    ])
+    const totalNonCurrentLiabilities =
+      parseNum(nonCurLiabCat?.total ?? 0) + parseNum(otherLiabCat?.total ?? 0)
+    const totalLiabilities = parseNum(
+      liabSection?.total ?? totalCurrentLiabilities + totalNonCurrentLiabilities
+    )
 
     const equity      = buildItems(equitySection?.account_transactions ?? [])
     const totalEquity = parseNum(equitySection?.total ?? 0)
-    const totalLiabilitiesAndEquity = totalLiabilities + totalEquity
+    const totalLiabilitiesAndEquity = parseNum(
+      liabEquitySection?.total ?? totalLiabilities + totalEquity
+    )
 
     return deriveBSRatios({
       currentAssets, totalCurrentAssets, nonCurrentAssets, totalNonCurrentAssets, totalAssets,
@@ -389,8 +425,10 @@ function parseBSData(raw: any): BSData {
 }
 
 function deriveBSRatios(d: Omit<BSData, 'currentRatio'|'quickRatio'|'debtToEquity'|'workingCapital'|'netDebt'>): BSData {
-  const cashItem = d.currentAssets.find((a) => /cash|bank/i.test(a.account))
-  const cash = cashItem?.amount ?? 0
+  // Sum all cash & bank items (Zoho splits Cash and Bank as separate line items)
+  const cash = d.currentAssets
+    .filter((a) => /^cash$|^bank$/i.test(a.account.trim()))
+    .reduce((s, a) => s + a.amount, 0)
   const currentRatio  = d.totalCurrentLiabilities > 0 ? d.totalCurrentAssets / d.totalCurrentLiabilities : 0
   const quickRatio    = d.totalCurrentLiabilities > 0 ? (d.totalCurrentAssets - cash) / d.totalCurrentLiabilities : 0
   const debtToEquity  = d.totalEquity !== 0 ? d.totalLiabilities / Math.abs(d.totalEquity) : 0
@@ -458,28 +496,38 @@ async function fetchRawCF(orgId: string, from: string, to: string): Promise<any>
 }
 
 function parseCFData(raw: any, netProfit = 0): CFData {
-  // Zoho CF likely returns: cashflow = [
-  //   { name: "Operating Activities", total: X, account_transactions: [...] },
-  //   { name: "Investing Activities", total: X, account_transactions: [...] },
-  //   { name: "Financing Activities", total: X, account_transactions: [...] },
-  //   { name: "Net Change in Cash",   total: X },
-  //   { name: "Opening Balance",      total: X },
-  //   { name: "Closing Balance",      total: X },
-  // ]
+  // Actual Zoho CF structure (confirmed via debug):
+  //   cash_flow = [                         ← top-level key is "cash_flow"
+  //     { name: "Beginning Cash Balance", total: X },
+  //     { name: "Net Change in cash", total: X, account_transactions: [
+  //         { name: "Cash Flow from Operating Activities", total: X, account_transactions: [...] },
+  //         { name: "Cash Flow from Investing Activities", total: X },
+  //         { name: "Cash Flow from Financing Activities", total: X },
+  //     ]},
+  //     { name: "Ending Cash Balance", total: X },
+  //   ]
 
-  const sections: any[] = raw?.cashflow ?? raw?.cash_flow_statement ?? []
+  const sections: any[] = raw?.cash_flow ?? raw?.cashflow ?? raw?.cash_flow_statement ?? []
 
   function findSection(kw: string): any {
     return sections.find((s) => s.name?.toLowerCase().includes(kw))
   }
 
   if (Array.isArray(sections) && sections.length > 0) {
-    const opSection  = findSection('operating')
-    const invSection = findSection('investing')
-    const finSection = findSection('financing')
-    const netSection = findSection('net change') ?? findSection('net cash')
-    const openSection = findSection('opening')
-    const closeSection = findSection('closing')
+    const openSection      = findSection('beginning')   // "Beginning Cash Balance"
+    const netChangeSection = findSection('net change')  // "Net Change in cash"
+    const closeSection     = findSection('ending')      // "Ending Cash Balance"
+
+    // Activities are nested inside "Net Change in cash" → account_transactions
+    const activitySections: any[] = netChangeSection?.account_transactions ?? []
+    function findActivity(kw: string): any {
+      return activitySections.find((s: any) => s.name?.toLowerCase().includes(kw))
+        ?? findSection(kw) // fallback: try top-level (some Zoho orgs may differ)
+    }
+
+    const opSection  = findActivity('operating')
+    const invSection = findActivity('investing')
+    const finSection = findActivity('financing')
 
     const operatingActivities = buildItems(opSection?.account_transactions ?? [])
     const totalOperating      = parseNum(opSection?.total ?? 0)
@@ -487,7 +535,7 @@ function parseCFData(raw: any, netProfit = 0): CFData {
     const totalInvesting      = parseNum(invSection?.total ?? 0)
     const financingActivities = buildItems(finSection?.account_transactions ?? [])
     const totalFinancing      = parseNum(finSection?.total ?? 0)
-    const netCashChange       = parseNum(netSection?.total ?? totalOperating + totalInvesting + totalFinancing)
+    const netCashChange       = parseNum(netChangeSection?.total ?? totalOperating + totalInvesting + totalFinancing)
     const openingBalance      = parseNum(openSection?.total ?? 0)
     const closingBalance      = parseNum(closeSection?.total ?? openingBalance + netCashChange)
 
