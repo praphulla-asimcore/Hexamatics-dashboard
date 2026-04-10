@@ -21,10 +21,10 @@ function writeStore(store: UsersStore) {
 // ─── Admin from env ───────────────────────────────────────────────────────────
 
 function getAdminFromEnv(): { email: string; name: string; password: string } | null {
-  const email = process.env.ADMIN_EMAIL
-  const password = process.env.ADMIN_PASSWORD
+  const email = (process.env.ADMIN_EMAIL || '').trim()
+  const password = (process.env.ADMIN_PASSWORD || '').trim()
   if (!email || !password) return null
-  return { email, name: process.env.ADMIN_NAME || 'Praphulla', password }
+  return { email, name: (process.env.ADMIN_NAME || 'Praphulla').trim(), password }
 }
 
 // ─── Validation ───────────────────────────────────────────────────────────────
