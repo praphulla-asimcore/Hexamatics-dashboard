@@ -196,8 +196,16 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <HexaLogo className="h-7" />
-            <span className="text-gray-600 text-sm hidden sm:block">|</span>
-            <span className="text-gray-300 text-sm font-medium hidden sm:block">CFO Finance Dashboard</span>
+            <div className="flex items-center gap-0.5 ml-2">
+              <a href="/dashboard"
+                className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-800 text-white">
+                AR Dashboard
+              </a>
+              <a href="/financials"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/60 transition">
+                Financial Statements
+              </a>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden md:block text-xs text-gray-600">
