@@ -98,22 +98,39 @@ function parseNum(v: unknown): number {
 }
 
 // ─── Line item tree builder ───────────────────────────────────────────────────
+// Handles actual Zoho response: items use `name` and `account_transactions`
 
-function buildItems(accounts: any[]): FSLineItem[] {
-  if (!Array.isArray(accounts)) return []
-  return accounts.map((a: any) => ({
-    account: a.account_name ?? a.name ?? '',
-    accountId: a.account_id ?? '',
-    amount: parseNum(a.total ?? a.amount ?? 0),
-    subItems: a.sub_accounts?.length
-      ? buildItems(a.sub_accounts)
-      : a.sub_rows?.length
-      ? buildItems(a.sub_rows)
-      : undefined,
-  }))
+function buildItems(items: any[]): FSLineItem[] {
+  if (!Array.isArray(items)) return []
+  return items
+    .filter((a: any) => a.name || a.account_name) // skip empty
+    .map((a: any) => {
+      const subTxns: any[] = a.account_transactions ?? a.sub_accounts ?? a.sub_rows ?? []
+      return {
+        account: a.name ?? a.account_name ?? '',
+        accountId: a.account_id ?? '',
+        amount: parseNum(a.total ?? a.amount ?? 0),
+        subItems: subTxns.length ? buildItems(subTxns) : undefined,
+      }
+    })
 }
 
 // ─── P&L fetch & parse ────────────────────────────────────────────────────────
+// Actual Zoho P&L response structure:
+//
+//   profit_and_loss = [
+//     { name: "Gross Profit",    total: X, account_transactions: [
+//         { name: "Operating Income",     total: X, account_transactions: [revenue items] },
+//         { name: "Cost of Goods Sold",   total: X, account_transactions: [cogs items]   },
+//     ]},
+//     { name: "Operating Profit", total: X, account_transactions: [
+//         { name: "Operating Expense",    total: X, account_transactions: [opex items]   },
+//     ]},
+//     { name: "Net Profit/Loss",  total: X, account_transactions: [
+//         { name: "Non Operating Income", total: X, account_transactions: [other income] },
+//         { name: "Non Operating Expense",total: X, account_transactions: [tax+FX+other] },
+//     ]},
+//   ]
 
 async function fetchRawPL(orgId: string, from: string, to: string): Promise<any> {
   return zohoFetch('/reports/profitandloss', {
@@ -125,48 +142,88 @@ async function fetchRawPL(orgId: string, from: string, to: string): Promise<any>
 }
 
 function parsePLData(raw: any): PLData {
-  // Zoho may wrap in different top-level keys
-  const pl = raw?.profit_and_loss ?? raw?.report ?? raw ?? {}
+  const sections: any[] = raw?.profit_and_loss ?? []
 
-  const revenue = buildItems(pl.total_income?.accounts ?? pl.income?.accounts ?? [])
-  const totalRevenue = parseNum(pl.total_income?.total ?? pl.income?.total ?? pl.total_revenue ?? 0)
+  // Find a top-level section by keyword
+  function findSection(kw: string): any {
+    return sections.find((s) => s.name?.toLowerCase().includes(kw))
+  }
 
-  const cogs = buildItems(pl.total_cogs?.accounts ?? pl.cost_of_goods_sold?.accounts ?? [])
-  const totalCogs = parseNum(pl.total_cogs?.total ?? pl.cost_of_goods_sold?.total ?? 0)
+  // Find a sub-category within a section's account_transactions
+  function findCat(section: any, kw: string): any {
+    return (section?.account_transactions ?? []).find(
+      (c: any) => c.name?.toLowerCase().includes(kw)
+    )
+  }
 
-  const grossProfit = parseNum(pl.gross_profit ?? totalRevenue - totalCogs)
+  const grossProfitSection   = findSection('gross profit')
+  const operatingProfitSection = findSection('operating profit')
+  const netProfitSection     = findSection('net profit')
+
+  // ── Revenue ──────────────────────────────────────────────────
+  const revCat = findCat(grossProfitSection, 'operating income')
+    ?? findCat(grossProfitSection, 'income')
+    ?? findCat(grossProfitSection, 'revenue')
+  const revenue = buildItems(revCat?.account_transactions ?? [])
+  const totalRevenue = parseNum(revCat?.total ?? 0)
+
+  // ── COGS ─────────────────────────────────────────────────────
+  const cogsCat = findCat(grossProfitSection, 'cost of goods sold')
+    ?? findCat(grossProfitSection, 'cogs')
+    ?? findCat(grossProfitSection, 'cost of')
+  const cogs = buildItems(cogsCat?.account_transactions ?? [])
+  const totalCogs = parseNum(cogsCat?.total ?? 0)
+
+  // ── Gross Profit ──────────────────────────────────────────────
+  const grossProfit = parseNum(grossProfitSection?.total ?? totalRevenue - totalCogs)
   const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
-  const opexAccounts =
-    pl.total_expense?.accounts ??
-    pl.operating_expense?.accounts ??
-    pl.total_operating_expense?.accounts ?? []
-  const operatingExpenses = buildItems(opexAccounts)
-  const totalOpex = parseNum(
-    pl.total_expense?.total ?? pl.operating_expense?.total ?? pl.total_operating_expense?.total ?? 0
-  )
+  // ── Operating Expenses ────────────────────────────────────────
+  const opexCat = findCat(operatingProfitSection, 'operating expense')
+    ?? findCat(operatingProfitSection, 'expense')
+  const allOpexItems: any[] = opexCat?.account_transactions ?? []
+  const operatingExpenses = buildItems(allOpexItems)
+  const totalOpex = parseNum(opexCat?.total ?? 0)
 
-  const ebit = parseNum(pl.net_operating_income ?? pl.operating_profit ?? grossProfit - totalOpex)
+  // Extract D&A from opex for EBITDA calculation
+  const daItem = allOpexItems.find((t) => /depreciation|amortization/i.test(t.name ?? ''))
+  const depreciation = parseNum(daItem?.total ?? 0)
+
+  // ── EBIT (Operating Profit) ───────────────────────────────────
+  const ebit = parseNum(operatingProfitSection?.total ?? grossProfit - totalOpex)
   const ebitMargin = totalRevenue > 0 ? (ebit / totalRevenue) * 100 : 0
-  const ebitda = ebit // We'll separate D&A below if available
-  const ebitdaMargin = ebitMargin
-  const depreciation = parseNum(pl.depreciation ?? 0)
-  const amortization = parseNum(pl.amortization ?? 0)
 
-  const otherIncome = buildItems(pl.total_other_income?.accounts ?? pl.other_income?.accounts ?? [])
-  const totalOtherIncome = parseNum(pl.total_other_income?.total ?? pl.other_income?.total ?? 0)
+  // ── EBITDA = EBIT + D&A ───────────────────────────────────────
+  const ebitda = ebit + depreciation
+  const ebitdaMargin = totalRevenue > 0 ? (ebitda / totalRevenue) * 100 : 0
 
-  const otherExpenses = buildItems(pl.total_other_expense?.accounts ?? pl.other_expense?.accounts ?? [])
-  const totalOtherExpenses = parseNum(pl.total_other_expense?.total ?? pl.other_expense?.total ?? 0)
+  // ── Non-Operating Income ──────────────────────────────────────
+  const nonOpIncCat = findCat(netProfitSection, 'non operating income')
+    ?? findCat(netProfitSection, 'other income')
+  const otherIncome = buildItems(nonOpIncCat?.account_transactions ?? [])
+  const totalOtherIncome = parseNum(nonOpIncCat?.total ?? 0)
 
-  const ebt = parseNum(pl.net_profit_before_tax ?? ebit + totalOtherIncome - totalOtherExpenses)
-  const ebtMargin = totalRevenue > 0 ? (ebt / totalRevenue) * 100 : 0
+  // ── Non-Operating Expense (tax is embedded here in Zoho) ─────
+  const nonOpExpCat = findCat(netProfitSection, 'non operating expense')
+    ?? findCat(netProfitSection, 'other expense')
+  const allNonOpExpItems: any[] = nonOpExpCat?.account_transactions ?? []
 
-  const tax = buildItems(pl.total_tax?.accounts ?? pl.tax?.accounts ?? [])
-  const totalTax = parseNum(pl.total_tax?.total ?? pl.tax?.total ?? 0)
+  // Separate income tax from other non-operating expenses
+  const taxItems    = allNonOpExpItems.filter((t) => /tax/i.test(t.name ?? ''))
+  const nonTaxItems = allNonOpExpItems.filter((t) => !/tax/i.test(t.name ?? ''))
 
-  const netProfit = parseNum(pl.net_profit ?? ebt - totalTax)
+  const tax = buildItems(taxItems)
+  const totalTax = taxItems.reduce((s, t) => s + parseNum(t.total), 0)
+  const otherExpenses = buildItems(nonTaxItems)
+  const totalOtherExpenses = nonTaxItems.reduce((s, t) => s + parseNum(t.total), 0)
+
+  // ── Net Profit ────────────────────────────────────────────────
+  const netProfit = parseNum(netProfitSection?.total ?? 0)
   const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
+
+  // EBT = Net Profit + Tax (reverse-engineered since Zoho gives net directly)
+  const ebt = netProfit + totalTax
+  const ebtMargin = totalRevenue > 0 ? (ebt / totalRevenue) * 100 : 0
 
   return {
     revenue, totalRevenue,
@@ -174,7 +231,7 @@ function parsePLData(raw: any): PLData {
     grossProfit, grossMargin,
     operatingExpenses, totalOpex,
     ebitda, ebitdaMargin,
-    depreciation, amortization,
+    depreciation, amortization: 0,
     ebit, ebitMargin,
     otherIncome, totalOtherIncome,
     otherExpenses, totalOtherExpenses,
@@ -246,77 +303,101 @@ async function fetchRawBS(orgId: string, asOfDate: string): Promise<any> {
 }
 
 function parseBSData(raw: any): BSData {
-  const bs = raw?.balance_sheet ?? raw?.report ?? raw ?? {}
+  // Zoho BS likely returns: balance_sheet = [
+  //   { name: "Assets",      total: X, account_transactions: [
+  //       { name: "Current Assets",      total: X, account_transactions: [...] },
+  //       { name: "Fixed Assets",        total: X, account_transactions: [...] },
+  //   ]},
+  //   { name: "Liabilities", total: X, account_transactions: [
+  //       { name: "Current Liabilities", total: X, account_transactions: [...] },
+  //       { name: "Long Term ...",       total: X, account_transactions: [...] },
+  //   ]},
+  //   { name: "Equity",      total: X, account_transactions: [...] },
+  // ]
 
-  const assets = bs.assets ?? bs.asset ?? {}
-  const liab = bs.liabilities ?? bs.liability ?? {}
-  const eq = bs.equity ?? {}
+  const sections: any[] = raw?.balance_sheet ?? []
 
-  const currentAssets = buildItems(
-    assets.current_assets?.accounts ?? assets.current_assets?.sub_accounts ?? []
-  )
-  const totalCurrentAssets = parseNum(assets.current_assets?.total ?? assets.total_current_assets ?? 0)
-
-  const nonCurrentAssets = buildItems(
-    assets.fixed_assets?.accounts ?? assets.non_current_assets?.accounts ?? []
-  )
-  const totalNonCurrentAssets = parseNum(
-    assets.fixed_assets?.total ?? assets.non_current_assets?.total ?? assets.total_fixed_assets ?? 0
-  )
-
-  const totalAssets = parseNum(assets.total ?? bs.total_assets ?? totalCurrentAssets + totalNonCurrentAssets)
-
-  const currentLiabilities = buildItems(
-    liab.current_liabilities?.accounts ?? liab.current_liabilities?.sub_accounts ?? []
-  )
-  const totalCurrentLiabilities = parseNum(
-    liab.current_liabilities?.total ?? liab.total_current_liabilities ?? 0
-  )
-
-  const nonCurrentLiabilities = buildItems(
-    liab.long_term_liabilities?.accounts ?? liab.non_current_liabilities?.accounts ?? []
-  )
-  const totalNonCurrentLiabilities = parseNum(
-    liab.long_term_liabilities?.total ?? liab.non_current_liabilities?.total ?? 0
-  )
-
-  const totalLiabilities = parseNum(
-    liab.total ?? bs.total_liabilities ?? totalCurrentLiabilities + totalNonCurrentLiabilities
-  )
-
-  const equity = buildItems(eq.accounts ?? eq.capital?.accounts ?? [])
-  const totalEquity = parseNum(eq.total ?? bs.total_equity ?? 0)
-
-  const totalLiabilitiesAndEquity = parseNum(
-    bs.total_liabilities_and_equity ?? totalLiabilities + totalEquity
-  )
-
-  // Derived ratios
-  const cashItem = currentAssets.find((a) =>
-    /cash|bank/i.test(a.account)
-  )
-  const cash = cashItem?.amount ?? 0
-  const currentRatio = totalCurrentLiabilities > 0
-    ? totalCurrentAssets / totalCurrentLiabilities : 0
-  const quickRatio = totalCurrentLiabilities > 0
-    ? (totalCurrentAssets - cash * 0.5) / totalCurrentLiabilities : 0
-  const debtToEquity = totalEquity !== 0
-    ? totalLiabilities / Math.abs(totalEquity) : 0
-  const workingCapital = totalCurrentAssets - totalCurrentLiabilities
-
-  // Short-term debt for net debt
-  const debtItem = currentLiabilities.find((a) => /loan|borrow|debt|bank/i.test(a.account))
-  const shortTermDebt = debtItem?.amount ?? 0
-  const netDebt = shortTermDebt - cash
-
-  return {
-    currentAssets, totalCurrentAssets,
-    nonCurrentAssets, totalNonCurrentAssets,
-    totalAssets, currentLiabilities, totalCurrentLiabilities,
-    nonCurrentLiabilities, totalNonCurrentLiabilities,
-    totalLiabilities, equity, totalEquity, totalLiabilitiesAndEquity,
-    currentRatio, quickRatio, debtToEquity, workingCapital, netDebt,
+  function findSection(kw: string): any {
+    return sections.find((s) => s.name?.toLowerCase().includes(kw))
   }
+  function findCat(section: any, kw: string): any {
+    return (section?.account_transactions ?? []).find(
+      (c: any) => c.name?.toLowerCase().includes(kw)
+    )
+  }
+
+  // ── Try new array format first ────────────────────────────────
+  if (Array.isArray(sections) && sections.length > 0) {
+    const assetsSection = findSection('asset')
+    const liabSection   = findSection('liabilit')
+    const equitySection = findSection('equity')
+
+    const curAssetsCat    = findCat(assetsSection, 'current asset')
+    const fixedAssetsCat  = findCat(assetsSection, 'fixed') ?? findCat(assetsSection, 'non-current') ?? findCat(assetsSection, 'noncurrent')
+
+    const currentAssets      = buildItems(curAssetsCat?.account_transactions ?? assetsSection?.account_transactions ?? [])
+    const totalCurrentAssets = parseNum(curAssetsCat?.total ?? 0)
+    const nonCurrentAssets   = buildItems(fixedAssetsCat?.account_transactions ?? [])
+    const totalNonCurrentAssets = parseNum(fixedAssetsCat?.total ?? 0)
+    const totalAssets        = parseNum(assetsSection?.total ?? totalCurrentAssets + totalNonCurrentAssets)
+
+    const curLiabCat   = findCat(liabSection, 'current liabilit')
+    const ltLiabCat    = findCat(liabSection, 'long term') ?? findCat(liabSection, 'non-current') ?? findCat(liabSection, 'noncurrent')
+
+    const currentLiabilities      = buildItems(curLiabCat?.account_transactions ?? liabSection?.account_transactions ?? [])
+    const totalCurrentLiabilities = parseNum(curLiabCat?.total ?? 0)
+    const nonCurrentLiabilities   = buildItems(ltLiabCat?.account_transactions ?? [])
+    const totalNonCurrentLiabilities = parseNum(ltLiabCat?.total ?? 0)
+    const totalLiabilities        = parseNum(liabSection?.total ?? totalCurrentLiabilities + totalNonCurrentLiabilities)
+
+    const equity      = buildItems(equitySection?.account_transactions ?? [])
+    const totalEquity = parseNum(equitySection?.total ?? 0)
+    const totalLiabilitiesAndEquity = totalLiabilities + totalEquity
+
+    return deriveBSRatios({
+      currentAssets, totalCurrentAssets, nonCurrentAssets, totalNonCurrentAssets, totalAssets,
+      currentLiabilities, totalCurrentLiabilities, nonCurrentLiabilities, totalNonCurrentLiabilities,
+      totalLiabilities, equity, totalEquity, totalLiabilitiesAndEquity,
+    })
+  }
+
+  // ── Fallback: flat object format ──────────────────────────────
+  const bs = raw?.balance_sheet ?? raw?.report ?? raw ?? {}
+  const assets = bs.assets ?? bs.asset ?? {}
+  const liab   = bs.liabilities ?? bs.liability ?? {}
+  const eq     = bs.equity ?? {}
+
+  const currentAssets      = buildItems(assets.current_assets?.accounts ?? assets.current_assets?.account_transactions ?? [])
+  const totalCurrentAssets = parseNum(assets.current_assets?.total ?? 0)
+  const nonCurrentAssets   = buildItems(assets.fixed_assets?.accounts ?? assets.fixed_assets?.account_transactions ?? [])
+  const totalNonCurrentAssets = parseNum(assets.fixed_assets?.total ?? 0)
+  const totalAssets        = parseNum(assets.total ?? bs.total_assets ?? totalCurrentAssets + totalNonCurrentAssets)
+  const currentLiabilities = buildItems(liab.current_liabilities?.accounts ?? liab.current_liabilities?.account_transactions ?? [])
+  const totalCurrentLiabilities = parseNum(liab.current_liabilities?.total ?? 0)
+  const nonCurrentLiabilities   = buildItems(liab.long_term_liabilities?.accounts ?? liab.long_term_liabilities?.account_transactions ?? [])
+  const totalNonCurrentLiabilities = parseNum(liab.long_term_liabilities?.total ?? 0)
+  const totalLiabilities   = parseNum(liab.total ?? totalCurrentLiabilities + totalNonCurrentLiabilities)
+  const equity             = buildItems(eq.accounts ?? eq.account_transactions ?? [])
+  const totalEquity        = parseNum(eq.total ?? 0)
+  const totalLiabilitiesAndEquity = totalLiabilities + totalEquity
+
+  return deriveBSRatios({
+    currentAssets, totalCurrentAssets, nonCurrentAssets, totalNonCurrentAssets, totalAssets,
+    currentLiabilities, totalCurrentLiabilities, nonCurrentLiabilities, totalNonCurrentLiabilities,
+    totalLiabilities, equity, totalEquity, totalLiabilitiesAndEquity,
+  })
+}
+
+function deriveBSRatios(d: Omit<BSData, 'currentRatio'|'quickRatio'|'debtToEquity'|'workingCapital'|'netDebt'>): BSData {
+  const cashItem = d.currentAssets.find((a) => /cash|bank/i.test(a.account))
+  const cash = cashItem?.amount ?? 0
+  const currentRatio  = d.totalCurrentLiabilities > 0 ? d.totalCurrentAssets / d.totalCurrentLiabilities : 0
+  const quickRatio    = d.totalCurrentLiabilities > 0 ? (d.totalCurrentAssets - cash) / d.totalCurrentLiabilities : 0
+  const debtToEquity  = d.totalEquity !== 0 ? d.totalLiabilities / Math.abs(d.totalEquity) : 0
+  const workingCapital = d.totalCurrentAssets - d.totalCurrentLiabilities
+  const debtItem = d.currentLiabilities.find((a) => /loan|borrow|debt/i.test(a.account))
+  const netDebt = (debtItem?.amount ?? 0) - cash
+  return { ...d, currentRatio, quickRatio, debtToEquity, workingCapital, netDebt }
 }
 
 export async function fetchBSStatement(
@@ -377,36 +458,68 @@ async function fetchRawCF(orgId: string, from: string, to: string): Promise<any>
 }
 
 function parseCFData(raw: any, netProfit = 0): CFData {
+  // Zoho CF likely returns: cashflow = [
+  //   { name: "Operating Activities", total: X, account_transactions: [...] },
+  //   { name: "Investing Activities", total: X, account_transactions: [...] },
+  //   { name: "Financing Activities", total: X, account_transactions: [...] },
+  //   { name: "Net Change in Cash",   total: X },
+  //   { name: "Opening Balance",      total: X },
+  //   { name: "Closing Balance",      total: X },
+  // ]
+
+  const sections: any[] = raw?.cashflow ?? raw?.cash_flow_statement ?? []
+
+  function findSection(kw: string): any {
+    return sections.find((s) => s.name?.toLowerCase().includes(kw))
+  }
+
+  if (Array.isArray(sections) && sections.length > 0) {
+    const opSection  = findSection('operating')
+    const invSection = findSection('investing')
+    const finSection = findSection('financing')
+    const netSection = findSection('net change') ?? findSection('net cash')
+    const openSection = findSection('opening')
+    const closeSection = findSection('closing')
+
+    const operatingActivities = buildItems(opSection?.account_transactions ?? [])
+    const totalOperating      = parseNum(opSection?.total ?? 0)
+    const investingActivities = buildItems(invSection?.account_transactions ?? [])
+    const totalInvesting      = parseNum(invSection?.total ?? 0)
+    const financingActivities = buildItems(finSection?.account_transactions ?? [])
+    const totalFinancing      = parseNum(finSection?.total ?? 0)
+    const netCashChange       = parseNum(netSection?.total ?? totalOperating + totalInvesting + totalFinancing)
+    const openingBalance      = parseNum(openSection?.total ?? 0)
+    const closingBalance      = parseNum(closeSection?.total ?? openingBalance + netCashChange)
+
+    const capex = Math.abs(
+      investingActivities
+        .filter((i) => i.amount < 0 && /asset|equip|property|capex|purchase/i.test(i.account))
+        .reduce((s, i) => s + i.amount, 0)
+    )
+    const freeCashFlow = totalOperating - capex
+    const cashConversionRate = netProfit !== 0 ? (freeCashFlow / netProfit) * 100 : 0
+
+    return {
+      operatingActivities, totalOperating,
+      investingActivities, totalInvesting,
+      financingActivities, totalFinancing,
+      netCashChange, openingBalance, closingBalance,
+      freeCashFlow, cashConversionRate,
+    }
+  }
+
+  // ── Fallback: flat object format ──────────────────────────────
   const cf = raw?.cash_flow_statement ?? raw?.cashflow ?? raw?.report ?? raw ?? {}
 
-  const operatingActivities = buildItems(
-    cf.operating_activities?.accounts ?? cf.operating_activities?.sub_accounts ?? []
-  )
-  const totalOperating = parseNum(
-    cf.operating_activities?.total ?? cf.total_operating_activities ?? cf.net_operating_activities ?? 0
-  )
-
-  const investingActivities = buildItems(
-    cf.investing_activities?.accounts ?? cf.investing_activities?.sub_accounts ?? []
-  )
-  const totalInvesting = parseNum(
-    cf.investing_activities?.total ?? cf.total_investing_activities ?? 0
-  )
-
-  const financingActivities = buildItems(
-    cf.financing_activities?.accounts ?? cf.financing_activities?.sub_accounts ?? []
-  )
-  const totalFinancing = parseNum(
-    cf.financing_activities?.total ?? cf.total_financing_activities ?? 0
-  )
-
-  const netCashChange = parseNum(
-    cf.net_cash ?? cf.net_change_in_cash ?? totalOperating + totalInvesting + totalFinancing
-  )
-  const openingBalance = parseNum(cf.opening_cash_balance ?? cf.opening_balance ?? 0)
-  const closingBalance = parseNum(cf.closing_cash_balance ?? cf.closing_balance ?? openingBalance + netCashChange)
-
-  // Capex = negative investing items (property, equipment purchases)
+  const operatingActivities = buildItems(cf.operating_activities?.accounts ?? cf.operating_activities?.account_transactions ?? [])
+  const totalOperating      = parseNum(cf.operating_activities?.total ?? 0)
+  const investingActivities = buildItems(cf.investing_activities?.accounts ?? cf.investing_activities?.account_transactions ?? [])
+  const totalInvesting      = parseNum(cf.investing_activities?.total ?? 0)
+  const financingActivities = buildItems(cf.financing_activities?.accounts ?? cf.financing_activities?.account_transactions ?? [])
+  const totalFinancing      = parseNum(cf.financing_activities?.total ?? 0)
+  const netCashChange       = parseNum(cf.net_cash ?? cf.net_change_in_cash ?? totalOperating + totalInvesting + totalFinancing)
+  const openingBalance      = parseNum(cf.opening_cash_balance ?? cf.opening_balance ?? 0)
+  const closingBalance      = parseNum(cf.closing_cash_balance ?? cf.closing_balance ?? openingBalance + netCashChange)
   const capex = Math.abs(
     investingActivities
       .filter((i) => i.amount < 0 && /asset|equip|property|capex|purchase/i.test(i.account))

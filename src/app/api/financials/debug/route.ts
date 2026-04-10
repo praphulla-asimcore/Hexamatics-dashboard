@@ -37,8 +37,8 @@ export async function GET(req: Request) {
     return NextResponse.json(results, { status: 200 })
   }
 
-  // 2. Try the requested report
-  if (report === 'pl') {
+  // 2. Try the requested report(s)
+  if (report === 'pl' || report === 'all') {
     try {
       const raw = await zohoFetch('/reports/profitandloss', {
         organization_id: orgId,
@@ -46,36 +46,36 @@ export async function GET(req: Request) {
         to_date: to,
         basis: 'Accrual',
       })
-      results.pl_response = raw
       results.pl_top_keys = Object.keys(raw as any)
+      results.pl_response = raw
     } catch (err: any) {
       results.pl_error = err.message
     }
   }
 
-  if (report === 'bs') {
+  if (report === 'bs' || report === 'all') {
     try {
       const raw = await zohoFetch('/reports/balancesheet', {
         organization_id: orgId,
         as_of_date: to,
         basis: 'Accrual',
       })
-      results.bs_response = raw
       results.bs_top_keys = Object.keys(raw as any)
+      results.bs_response = raw
     } catch (err: any) {
       results.bs_error = err.message
     }
   }
 
-  if (report === 'cf') {
+  if (report === 'cf' || report === 'all') {
     try {
       const raw = await zohoFetch('/reports/cashflow', {
         organization_id: orgId,
         from_date: from,
         to_date: to,
       })
-      results.cf_response = raw
       results.cf_top_keys = Object.keys(raw as any)
+      results.cf_response = raw
     } catch (err: any) {
       results.cf_error = err.message
     }
