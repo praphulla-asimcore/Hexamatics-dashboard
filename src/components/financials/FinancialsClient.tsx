@@ -9,6 +9,7 @@ import {
 } from 'chart.js'
 import { ORGS } from '@/lib/orgs'
 import {
+  buildConsolidatedPL, buildConsolidatedBS, buildConsolidatedCF,
   generatePLInsights, generateBSInsights, generateCFInsights,
   variance, varianceLabel, insightColor, insightIcon,
 } from '@/lib/financial-analytics'
@@ -900,6 +901,7 @@ export function FinancialsClient() {
 
   const [insights, setInsights] = useState<CFOInsight[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadedCount, setLoadedCount] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<string>('')
 
@@ -915,20 +917,98 @@ export function FinancialsClient() {
     return sp.toString()
   }
 
-  // Abort controller ref — cancels the previous in-flight request when a new
-  // one starts, so rapid tab/entity switching doesn't pile up requests to Zoho.
+  // Abort controller — cancels in-flight fetches when period/tab/entity changes
   const abortRef = useRef<AbortController | null>(null)
 
   const fetchData = useCallback(async (tab: TabType, force = false) => {
-    // Cancel any in-flight request
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
 
     setLoading(true)
     setError(null)
+    setLoadedCount(0)
+
+    const endpoint = tab === 'pl' ? 'pl' : tab === 'bs' ? 'bs' : 'cf'
+
+    // ── Consolidated: fetch each entity sequentially, one at a time ──────────
+    // Avoids Zoho's per-minute rate limit (no parallel bursts) and Vercel's
+    // 10s serverless timeout (each individual call is fast, <3s).
+    // The consolidated view updates progressively as each entity loads.
+    if (view === 'consolidated') {
+      clearData()
+
+      // Base params without orgId
+      const baseParams = new URLSearchParams({
+        mode: period.mode, year: String(period.year), comparison: period.comparison,
+      })
+      if (period.month) baseParams.set('month', String(period.month))
+      if (period.quarter) baseParams.set('quarter', String(period.quarter))
+      if (period.half) baseParams.set('half', String(period.half))
+      if (force) baseParams.set('force', '1')
+
+      const plStatements: PLStatement[] = []
+      const bsStatements: BalanceSheetStatement[] = []
+      const cfStatements: CashFlowStatement[] = []
+      const label = getFinancialPeriodLabel(period)
+
+      for (let i = 0; i < ORGS.length; i++) {
+        if (controller.signal.aborted) break
+        const org = ORGS[i]
+        const params = new URLSearchParams(baseParams)
+        params.set('orgId', org.id)
+
+        try {
+          const res = await fetch(`/api/financials/${endpoint}?${params}`, {
+            signal: controller.signal,
+          })
+          if (!res.ok) throw new Error(await res.text())
+          const json = await res.json()
+          const stmt = json.statement
+
+          if (tab === 'pl') plStatements.push(stmt)
+          else if (tab === 'bs') bsStatements.push(stmt)
+          else cfStatements.push(stmt)
+        } catch (err: any) {
+          if (err.name === 'AbortError') { setLoading(false); return }
+          // Network-level failure — push a stub with error so entity shows in banner
+          const stub: any = {
+            orgId: org.id, orgShort: org.short, orgName: org.name,
+            currency: org.currency, fxRate: org.fxToMyr ?? 1,
+            error: err.message,
+            data: {}, dateRange: { from: '', to: '' }, asOfDate: '',
+          }
+          if (tab === 'pl') plStatements.push(stub)
+          else if (tab === 'bs') bsStatements.push(stub)
+          else cfStatements.push(stub)
+        }
+
+        // Update consolidated view after each entity — shows progressive results
+        if (!controller.signal.aborted) {
+          if (tab === 'pl' && plStatements.length) {
+            const c = buildConsolidatedPL(plStatements, label)
+            setPLConsolidated(c)
+            setInsights(generatePLInsights(c))
+          } else if (tab === 'bs' && bsStatements.length) {
+            const c = buildConsolidatedBS(bsStatements, bsStatements[0]?.asOfDate ?? '')
+            setBSConsolidated(c)
+            setInsights(generateBSInsights(c))
+          } else if (tab === 'cf' && cfStatements.length) {
+            const c = buildConsolidatedCF(cfStatements, label)
+            setCFConsolidated(c)
+            setInsights(generateCFInsights(c))
+          }
+          setLoadedCount(i + 1)
+          setLastRefreshed(new Date().toISOString())
+        }
+      }
+
+      if (!controller.signal.aborted) setLoading(false)
+      return
+    }
+
+    // ── Single entity fetch ───────────────────────────────────────────────────
     try {
-      const endpoint = tab === 'pl' ? 'pl' : tab === 'bs' ? 'bs' : 'cf'
       const params = buildParams(force ? { force: '1' } : {})
       const res = await fetch(`/api/financials/${endpoint}?${params}`, {
         signal: controller.signal,
@@ -936,21 +1016,12 @@ export function FinancialsClient() {
       if (!res.ok) throw new Error(await res.text())
       const json = await res.json()
       setLastRefreshed(json.lastRefreshed ?? new Date().toISOString())
-      setInsights(json.insights ?? [])
 
-      if (view === 'consolidated') {
-        if (tab === 'pl') setPLConsolidated(json.consolidated)
-        else if (tab === 'bs') setBSConsolidated(json.consolidated)
-        else setCFConsolidated(json.consolidated)
-      } else {
-        if (tab === 'pl') setPLStatement(json.statement)
-        else if (tab === 'bs') setBSStatement(json.statement)
-        else setCFStatement(json.statement)
-      }
+      if (tab === 'pl') setPLStatement(json.statement)
+      else if (tab === 'bs') setBSStatement(json.statement)
+      else setCFStatement(json.statement)
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        setError(err.message ?? 'Failed to load data')
-      }
+      if (err.name !== 'AbortError') setError(err.message ?? 'Failed to load data')
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
@@ -1092,13 +1163,24 @@ export function FinancialsClient() {
           <div className="flex items-center justify-center py-20">
             <div className="text-center">
               <div className="inline-block w-10 h-10 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mb-3" />
-              <p className="text-gray-500 text-sm">
-                Fetching {activeTab === 'pl' ? 'P&L' : activeTab === 'bs' ? 'Balance Sheet' : 'Cash Flow'}
-                {view === 'consolidated' ? ' for all 9 entities' : ''}…
-              </p>
-              {view === 'consolidated' && (
-                <p className="text-xs text-gray-600 mt-1">
-                  Also fetching BNM exchange rates for IAS 21 conversion
+              {view === 'consolidated' ? (
+                <>
+                  <p className="text-gray-400 text-sm font-medium">
+                    Loading {loadedCount} of {ORGS.length} entities…
+                  </p>
+                  <div className="w-48 bg-gray-800 rounded-full h-1.5 mt-2 mx-auto overflow-hidden">
+                    <div
+                      className="bg-purple-500 h-1.5 rounded-full transition-all duration-300"
+                      style={{ width: `${(loadedCount / ORGS.length) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-600 mt-2">
+                    Fetching sequentially to stay within Zoho rate limits
+                  </p>
+                </>
+              ) : (
+                <p className="text-gray-500 text-sm">
+                  Fetching {activeTab === 'pl' ? 'P&L' : activeTab === 'bs' ? 'Balance Sheet' : 'Cash Flow'}…
                 </p>
               )}
             </div>
