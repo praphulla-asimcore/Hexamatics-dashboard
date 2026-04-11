@@ -638,8 +638,8 @@ function emptyCF(): CFData {
 async function batchedMap<T, R>(
   items: T[],
   fn: (item: T) => Promise<R>,
-  batchSize = 3,
-  delayMs = 1000
+  batchSize = 1,
+  delayMs = 700
 ): Promise<R[]> {
   const results: R[] = []
   for (let i = 0; i < items.length; i += batchSize) {

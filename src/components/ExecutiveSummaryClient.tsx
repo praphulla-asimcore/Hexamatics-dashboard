@@ -88,18 +88,25 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
     try {
       const arP  = buildArParams(p)
       const finP = buildFinParams(p)
-      const [arRes, plRes, bsRes, cfRes] = await Promise.all([
-        fetch(`/api/zoho/dashboard?${arP}`),
-        fetch(`/api/financials/pl?${finP}`),
-        fetch(`/api/financials/bs?${finP}`),
-        fetch(`/api/financials/cf?${finP}`),
-      ])
-      const [arJson, plJson, bsJson, cfJson] = await Promise.all([
-        arRes.json(), plRes.json(), bsRes.json(), cfRes.json(),
-      ])
-      if (!arJson.error)     setData(arJson)
+
+      // Fetch AR data immediately (separate Zoho service, no rate limit conflict)
+      const arRes  = await fetch(`/api/zoho/dashboard?${arP}`)
+      const arJson = await arRes.json()
+      if (!arJson.error) setData(arJson)
+
+      // Fetch financials sequentially to avoid Zoho 429 rate limits
+      // Each type fetches 9 orgs one-by-one; running them in parallel would
+      // triple the concurrent request count and reliably trigger throttling.
+      const plRes  = await fetch(`/api/financials/pl?${finP}`)
+      const plJson = await plRes.json()
       if (plJson.consolidated) setPlData(plJson)
+
+      const bsRes  = await fetch(`/api/financials/bs?${finP}`)
+      const bsJson = await bsRes.json()
       if (bsJson.consolidated) setBsData(bsJson)
+
+      const cfRes  = await fetch(`/api/financials/cf?${finP}`)
+      const cfJson = await cfRes.json()
       if (cfJson.consolidated) setCfData(cfJson)
     } catch (err) {
       console.error('Executive summary fetch error:', err)

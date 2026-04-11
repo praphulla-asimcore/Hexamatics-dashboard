@@ -230,6 +230,10 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
                 className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/60 transition">
                 Financial Statements
               </a>
+              <a href="/executive"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/60 transition">
+                Executive Summary
+              </a>
             </div>
           </div>
           <div className="flex items-center gap-3">
