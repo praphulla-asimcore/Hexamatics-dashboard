@@ -4,11 +4,8 @@ import type { ZohoTokenResponse } from '@/types'
 let cachedToken: string | null = null
 let tokenExpiry = 0
 
-// In-flight refresh deduplication:
-// If a refresh is already underway, all concurrent callers share the same
-// promise instead of each firing their own request to Zoho's OAuth endpoint.
-// Without this, Promise.all(9 entities) fires 9 simultaneous refresh calls
-// and Zoho responds with "too many requests".
+// In-flight refresh deduplication — prevents N concurrent calls within
+// one serverless instance from each firing a separate refresh request.
 let refreshPromise: Promise<string> | null = null
 
 const DC = process.env.ZOHO_DC || 'com'
@@ -17,24 +14,44 @@ const BOOKS_BASE = `https://www.zohoapis.${DC}/books/v3`
 
 /**
  * Returns a valid Zoho access token, refreshing if needed.
- * Uses the refresh_token grant — no user interaction required.
- * Deduplicates concurrent refresh calls so only one hits the OAuth endpoint.
+ * - Deduplicates concurrent calls within one serverless instance.
+ * - Retries up to 3 times with exponential backoff on rate-limit errors
+ *   (Zoho returns 400 "too many requests" when the OAuth endpoint is hit
+ *   by multiple serverless instances simultaneously).
  */
 export async function getAccessToken(): Promise<string> {
   const now = Date.now()
 
-  // Return cached token if still valid (with 60s buffer)
+  // Return cached token if still valid (60s buffer)
   if (cachedToken && now < tokenExpiry - 60_000) {
     return cachedToken
   }
 
-  // If a refresh is already in-flight, wait for it instead of firing another
+  // If a refresh is already in-flight in this instance, share it
   if (refreshPromise) {
     return refreshPromise
   }
 
-  // Start a new refresh and store the promise so concurrent callers can share it
   refreshPromise = (async () => {
+    try {
+      return await refreshWithRetry()
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
+async function refreshWithRetry(maxAttempts = 4): Promise<string> {
+  let lastError: Error | null = null
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      // Exponential backoff: 1s, 2s, 4s
+      await sleep(1000 * Math.pow(2, attempt - 1))
+    }
+
     try {
       const params = new URLSearchParams({
         refresh_token: process.env.ZOHO_REFRESH_TOKEN!,
@@ -47,6 +64,15 @@ export async function getAccessToken(): Promise<string> {
 
       if (!res.ok) {
         const body = await res.text()
+        const isRateLimit =
+          res.status === 400 &&
+          (body.includes('too many requests') || body.includes('Access Denied'))
+        // Retry on rate limit; throw immediately on other errors
+        if (isRateLimit && attempt < maxAttempts - 1) {
+          lastError = new Error(`Zoho token refresh failed: ${res.status} ${body}`)
+          console.warn(`Zoho rate limit hit (attempt ${attempt + 1}/${maxAttempts}), retrying…`)
+          continue
+        }
         throw new Error(`Zoho token refresh failed: ${res.status} ${body}`)
       }
 
@@ -59,13 +85,24 @@ export async function getAccessToken(): Promise<string> {
       cachedToken = data.access_token
       tokenExpiry = Date.now() + data.expires_in * 1000
       return cachedToken
-    } finally {
-      // Clear the in-flight promise regardless of success or failure
-      refreshPromise = null
+    } catch (err: any) {
+      // Only retry on rate-limit-style errors
+      if (
+        attempt < maxAttempts - 1 &&
+        err.message?.includes('too many requests')
+      ) {
+        lastError = err
+        continue
+      }
+      throw err
     }
-  })()
+  }
 
-  return refreshPromise
+  throw lastError ?? new Error('Zoho token refresh failed after retries')
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms))
 }
 
 /**
@@ -83,7 +120,6 @@ export async function zohoFetch<T = unknown>(
 
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Zoho-oauthtoken ${token}` },
-    // Vercel edge cache — revalidate every 5 minutes at CDN level
     next: { revalidate: 300 },
   })
 

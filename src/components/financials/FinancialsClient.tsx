@@ -915,13 +915,24 @@ export function FinancialsClient() {
     return sp.toString()
   }
 
+  // Abort controller ref — cancels the previous in-flight request when a new
+  // one starts, so rapid tab/entity switching doesn't pile up requests to Zoho.
+  const abortRef = useRef<AbortController | null>(null)
+
   const fetchData = useCallback(async (tab: TabType, force = false) => {
+    // Cancel any in-flight request
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     setError(null)
     try {
       const endpoint = tab === 'pl' ? 'pl' : tab === 'bs' ? 'bs' : 'cf'
       const params = buildParams(force ? { force: '1' } : {})
-      const res = await fetch(`/api/financials/${endpoint}?${params}`)
+      const res = await fetch(`/api/financials/${endpoint}?${params}`, {
+        signal: controller.signal,
+      })
       if (!res.ok) throw new Error(await res.text())
       const json = await res.json()
       setLastRefreshed(json.lastRefreshed ?? new Date().toISOString())
@@ -937,9 +948,11 @@ export function FinancialsClient() {
         else setCFStatement(json.statement)
       }
     } catch (err: any) {
-      setError(err.message ?? 'Failed to load data')
+      if (err.name !== 'AbortError') {
+        setError(err.message ?? 'Failed to load data')
+      }
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, view])

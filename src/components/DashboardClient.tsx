@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import type { DashboardData, PeriodDef, AnnualYearData } from '@/types'
 import {
@@ -68,7 +68,13 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
   const [annualData, setAnnualData] = useState<AnnualYearData[] | null>(null)
   const [annualLoading, setAnnualLoading] = useState(false)
 
+  const abortRef = useRef<AbortController | null>(null)
+
   const fetchData = useCallback(async (p: PeriodDef) => {
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
     setLoading(true)
     setError(null)
     try {
@@ -80,7 +86,9 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
         ...(p.half ? { half: String(p.half) } : {}),
         comparison: p.comparison ?? 'previous',
       })
-      const res = await fetch(`/api/zoho/dashboard?${params}`)
+      const res = await fetch(`/api/zoho/dashboard?${params}`, {
+        signal: controller.signal,
+      })
       const json = await res.json()
       if (json.error) {
         setError(json.error)
@@ -88,9 +96,11 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
         setData(json)
       }
     } catch (err: any) {
-      setError(err.message ?? 'Failed to load dashboard data')
+      if (err.name !== 'AbortError') {
+        setError(err.message ?? 'Failed to load dashboard data')
+      }
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
   }, [])
 
