@@ -1,15 +1,15 @@
 interface Props {
   className?: string
-  textClassName?: string
 }
 
-export function HexaLogo({ className = 'h-8', textClassName }: Props) {
+export function HexaLogo({ className = 'h-8' }: Props) {
   return (
     <svg
       viewBox="0 0 260 72"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
       aria-label="HEXA"
+      style={{ filter: 'drop-shadow(0 1px 2px rgba(139,24,232,0.15))' }}
     >
       <defs>
         <linearGradient id="hg" x1="0%" y1="0%" x2="100%" y2="0%">

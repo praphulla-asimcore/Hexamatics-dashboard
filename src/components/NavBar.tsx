@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { HexaLogo } from '@/components/HexaLogo'
+import { ThemeToggle } from '@/components/ThemeProvider'
 
 const NAV_LINKS = [
   { href: '/dashboard',   label: 'AR Dashboard' },
@@ -42,23 +43,25 @@ export function NavBar() {
           })}
         </div>
 
-        {/* Spacer */}
         <div className="flex-1" />
 
-        {/* User + sign out */}
-        {session && (
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-500 hidden sm:block">
-              {session.user?.name ?? session.user?.email}
-            </span>
-            <button
-              onClick={() => signOut({ callbackUrl: '/login' })}
-              className="text-xs text-gray-500 hover:text-gray-300 transition"
-            >
-              Sign out
-            </button>
-          </div>
-        )}
+        {/* Theme toggle + user */}
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          {session && (
+            <>
+              <span className="text-xs text-gray-500 hidden sm:block">
+                {session.user?.name ?? session.user?.email}
+              </span>
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="text-xs text-gray-500 hover:text-gray-300 transition"
+              >
+                Sign out
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </nav>
   )

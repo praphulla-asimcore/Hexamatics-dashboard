@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
+import { ThemeToggle } from '@/components/ThemeProvider'
 import type { DashboardData, PeriodDef, AnnualYearData } from '@/types'
 import {
   fmtMyr, fmtLocal, fmtPct, fmtChange, fmtDays,
@@ -232,6 +233,7 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <span className="hidden md:block text-xs text-gray-600">
               {session?.user?.name ?? session?.user?.email}
             </span>
