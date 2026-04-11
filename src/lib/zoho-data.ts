@@ -180,16 +180,17 @@ async function fetchOrgInvoices(
       per_page: '200',
       page: String(page),
       filter_by: 'Status.All',
+      // Server-side date filter — drastically reduces pages fetched
+      date_start: from,
+      date_end: to,
     })
 
     const invoices: ZohoInvoice[] = data.invoices || []
-    const inRange = invoices.filter((inv) => inv.date >= from && inv.date <= to)
-    allInvoices.push(...inRange)
+    allInvoices.push(...invoices)
 
-    const hasOlder = invoices.some((inv) => inv.date < from)
-    hasMore = !hasOlder && (data.page_context?.has_more_page ?? false)
+    hasMore = data.page_context?.has_more_page ?? false
     page++
-    if (page > 50) break
+    if (page > 20) break // safety cap — with date filter this should never be hit
   }
 
   return allInvoices

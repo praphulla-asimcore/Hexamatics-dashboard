@@ -63,12 +63,14 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
   const [data, setData] = useState<DashboardData>(initialData)
   const [period, setPeriod] = useState<PeriodDef>(initialPeriod)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('executive')
   const [annualData, setAnnualData] = useState<AnnualYearData[] | null>(null)
   const [annualLoading, setAnnualLoading] = useState(false)
 
   const fetchData = useCallback(async (p: PeriodDef) => {
     setLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams({
         mode: p.mode,
@@ -80,7 +82,13 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
       })
       const res = await fetch(`/api/zoho/dashboard?${params}`)
       const json = await res.json()
-      if (!json.error) setData(json)
+      if (json.error) {
+        setError(json.error)
+      } else {
+        setData(json)
+      }
+    } catch (err: any) {
+      setError(err.message ?? 'Failed to load dashboard data')
     } finally {
       setLoading(false)
     }
@@ -95,6 +103,12 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
     } finally {
       setAnnualLoading(false)
     }
+  }, [])
+
+  // Auto-fetch on mount (page no longer pre-loads data server-side)
+  useEffect(() => {
+    fetchData(initialPeriod)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Fetch annual data when that tab is first opened
@@ -247,6 +261,18 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
       </div>
 
       <main className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+        {/* ── Loading / Error state ─────────────────────────────────── */}
+        {loading && data.entities.length === 0 && (
+          <div className="flex items-center justify-center py-20 text-gray-500 text-sm">
+            <span className="animate-spin mr-2">⟳</span> Loading dashboard data…
+          </div>
+        )}
+        {error && (
+          <div className="bg-red-950/50 border border-red-800 rounded-xl p-4 text-sm text-red-300">
+            <span className="font-semibold">Error loading data: </span>{error}
+          </div>
+        )}
 
         {/* ── KPI Row ───────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">

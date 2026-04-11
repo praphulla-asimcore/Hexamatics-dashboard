@@ -1095,13 +1095,34 @@ export function FinancialsClient() {
         {/* Content */}
         {!loading && (
           <div className="space-y-6">
+            {/* Per-entity error banner (consolidated view) */}
+            {view === 'consolidated' && (() => {
+              const errs = [
+                ...(plConsolidated?.entities ?? []),
+                ...(bsConsolidated?.entities ?? []),
+                ...(cfConsolidated?.entities ?? []),
+              ].filter((e) => e.error)
+              if (!errs.length) return null
+              const unique = [...new Map(errs.map((e) => [e.orgId, e])).values()]
+              return (
+                <div className="bg-amber-950/40 border border-amber-800/60 rounded-lg p-3 text-xs text-amber-400 space-y-1">
+                  <p className="font-semibold">Some entities could not be loaded (excluded from consolidation):</p>
+                  {unique.map((e) => (
+                    <p key={e.orgId}>· <span className="font-medium">{e.orgShort}</span>: {e.error}</p>
+                  ))}
+                </div>
+              )
+            })()}
+
             {activeTab === 'pl' && (
               <>
                 {view === 'consolidated' && plConsolidated && (
                   <ConsolidatedPLView data={plConsolidated} insights={insights} />
                 )}
                 {view !== 'consolidated' && plStatement && (
-                  <PLView statement={plStatement} compLabel={compLabel} />
+                  plStatement.error
+                    ? <div className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-red-400 text-sm">{plStatement.error}</div>
+                    : <PLView statement={plStatement} compLabel={compLabel} />
                 )}
               </>
             )}
@@ -1112,7 +1133,9 @@ export function FinancialsClient() {
                   <ConsolidatedBSView data={bsConsolidated} insights={insights} />
                 )}
                 {view !== 'consolidated' && bsStatement && (
-                  <BSView statement={bsStatement} compLabel={compLabel} />
+                  bsStatement.error
+                    ? <div className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-red-400 text-sm">{bsStatement.error}</div>
+                    : <BSView statement={bsStatement} compLabel={compLabel} />
                 )}
               </>
             )}
@@ -1123,7 +1146,9 @@ export function FinancialsClient() {
                   <ConsolidatedCFView data={cfConsolidated} insights={insights} />
                 )}
                 {view !== 'consolidated' && cfStatement && (
-                  <CFView statement={cfStatement} compLabel={compLabel} />
+                  cfStatement.error
+                    ? <div className="bg-red-950/40 border border-red-900 rounded-lg p-4 text-red-400 text-sm">{cfStatement.error}</div>
+                    : <CFView statement={cfStatement} compLabel={compLabel} />
                 )}
               </>
             )}
