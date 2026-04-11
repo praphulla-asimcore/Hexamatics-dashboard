@@ -13,6 +13,7 @@ import {
 import type { FinancialPeriod } from '@/types/financials'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60 // seconds — bulk fetch can take 20-50 s cold
 
 function parsePeriod(sp: URLSearchParams): FinancialPeriod {
   const mode = (sp.get('mode') ?? 'month') as FinancialPeriod['mode']

@@ -6,6 +6,7 @@ import { buildConsolidatedCF, generateCFInsights } from '@/lib/financial-analyti
 import type { FinancialPeriod } from '@/types/financials'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 function parsePeriod(sp: URLSearchParams): FinancialPeriod {
   const mode = (sp.get('mode') ?? 'month') as FinancialPeriod['mode']

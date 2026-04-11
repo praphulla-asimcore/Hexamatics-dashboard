@@ -250,18 +250,16 @@ export async function fetchPLStatement(
   const compPeriod = getComparisonPeriod(period)
   const compRange = compPeriod ? getFinancialDateRange(compPeriod) : null
 
-  // Fetch avg FX rate for P&L (IAS 21)
-  const [fxRateData, compFxData] = await Promise.all([
-    getAverageRate(org.currency, range.from, range.to),
-    compRange ? getAverageRate(org.currency, compRange.from, compRange.to) : Promise.resolve(null),
-  ])
+  // Fetch FX rates sequentially (avoid concurrent Zoho calls)
+  const fxRateData = await getAverageRate(org.currency, range.from, range.to)
+  const compFxData = compRange ? await getAverageRate(org.currency, compRange.from, compRange.to) : null
   const fxRate = fxRateData.rate
 
   try {
-    const [raw, compRaw] = await Promise.all([
-      fetchRawPL(orgId, range.from, range.to),
-      compRange ? fetchRawPL(orgId, compRange.from, compRange.to) : Promise.resolve(null),
-    ])
+    // Fetch current then comparison sequentially — the global rate limiter in
+    // zohoFetch enforces spacing, but Promise.all would fire both immediately.
+    const raw = await fetchRawPL(orgId, range.from, range.to)
+    const compRaw = compRange ? await fetchRawPL(orgId, compRange.from, compRange.to) : null
 
     const data = parsePLData(raw)
     const comparison = compRaw ? parsePLData(compRaw) : undefined
@@ -448,16 +446,12 @@ export async function fetchBSStatement(
   const compPeriod = getComparisonPeriod(period)
   const compDate = compPeriod ? getFinancialDateRange(compPeriod).to : null
 
-  const [fxRateData, compFxData] = await Promise.all([
-    getClosingRate(org.currency, asOfDate),
-    compDate ? getClosingRate(org.currency, compDate) : Promise.resolve(null),
-  ])
+  const fxRateData = await getClosingRate(org.currency, asOfDate)
+  const compFxData = compDate ? await getClosingRate(org.currency, compDate) : null
 
   try {
-    const [raw, compRaw] = await Promise.all([
-      fetchRawBS(orgId, asOfDate),
-      compDate ? fetchRawBS(orgId, compDate) : Promise.resolve(null),
-    ])
+    const raw = await fetchRawBS(orgId, asOfDate)
+    const compRaw = compDate ? await fetchRawBS(orgId, compDate) : null
 
     return {
       orgId, orgShort: org.short, orgName: org.name, currency: org.currency,
@@ -594,16 +588,12 @@ export async function fetchCFStatement(
   const compPeriod = getComparisonPeriod(period)
   const compRange = compPeriod ? getFinancialDateRange(compPeriod) : null
 
-  const [fxRateData, compFxData] = await Promise.all([
-    getAverageRate(org.currency, range.from, range.to),
-    compRange ? getAverageRate(org.currency, compRange.from, compRange.to) : Promise.resolve(null),
-  ])
+  const fxRateData = await getAverageRate(org.currency, range.from, range.to)
+  const compFxData = compRange ? await getAverageRate(org.currency, compRange.from, compRange.to) : null
 
   try {
-    const [raw, compRaw] = await Promise.all([
-      fetchRawCF(orgId, range.from, range.to),
-      compRange ? fetchRawCF(orgId, compRange.from, compRange.to) : Promise.resolve(null),
-    ])
+    const raw = await fetchRawCF(orgId, range.from, range.to)
+    const compRaw = compRange ? await fetchRawCF(orgId, compRange.from, compRange.to) : null
 
     return {
       orgId, orgShort: org.short, orgName: org.name, currency: org.currency,
@@ -630,41 +620,30 @@ function emptyCF(): CFData {
   }
 }
 
-// ─── Concurrency limiter ──────────────────────────────────────────────────────
-// Zoho enforces a per-minute API rate limit. Firing all 9 entities in one
-// Promise.all saturates the limit and triggers 429s. Process in batches of 3
-// with a short gap between batches to stay well under the threshold.
+// ─── All entities — strictly sequential ──────────────────────────────────────
+// The global rate limiter in zohoFetch (zoho-auth.ts) enforces a minimum
+// 1100 ms gap between every Zoho API call. Processing orgs sequentially here
+// ensures those calls never overlap, so we stay well under Zoho's per-minute
+// quota even when fetching 9 orgs × 2 periods per statement type.
 
-async function batchedMap<T, R>(
-  items: T[],
-  fn: (item: T) => Promise<R>,
-  batchSize = 1,
-  delayMs = 700
-): Promise<R[]> {
+async function sequentialMap<T, R>(items: T[], fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = []
-  for (let i = 0; i < items.length; i += batchSize) {
-    const batch = items.slice(i, i + batchSize)
-    const batchResults = await Promise.all(batch.map(fn))
-    results.push(...batchResults)
-    if (i + batchSize < items.length) {
-      await new Promise((r) => setTimeout(r, delayMs))
-    }
+  for (const item of items) {
+    results.push(await fn(item))
   }
   return results
 }
 
-// ─── All entities batch ───────────────────────────────────────────────────────
-
 export async function fetchAllPL(period: FinancialPeriod): Promise<PLStatement[]> {
-  return batchedMap(ORGS, (org) => fetchPLStatement(org.id, period))
+  return sequentialMap(ORGS, (org) => fetchPLStatement(org.id, period))
 }
 
 export async function fetchAllBS(period: FinancialPeriod): Promise<BalanceSheetStatement[]> {
-  return batchedMap(ORGS, (org) => fetchBSStatement(org.id, period))
+  return sequentialMap(ORGS, (org) => fetchBSStatement(org.id, period))
 }
 
 export async function fetchAllCF(period: FinancialPeriod): Promise<CashFlowStatement[]> {
-  return batchedMap(ORGS, (org) => fetchCFStatement(org.id, period))
+  return sequentialMap(ORGS, (org) => fetchCFStatement(org.id, period))
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

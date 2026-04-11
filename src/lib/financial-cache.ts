@@ -18,7 +18,7 @@ import type {
   FinancialPeriod,
 } from '@/types/financials'
 
-const TTL = 60 * 60 * 1000 // 1 hour
+const TTL = 4 * 60 * 60 * 1000 // 4 hours — reduces cold-fetch frequency
 
 const plCache = new Map<string, { data: PLStatement[]; at: number }>()
 const bsCache = new Map<string, { data: BalanceSheetStatement[]; at: number }>()

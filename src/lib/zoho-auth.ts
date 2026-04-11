@@ -105,35 +105,55 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+// ─── Global rate limiter ──────────────────────────────────────────────────────
+// Zoho enforces a requests-per-minute limit on the access token (not just
+// per org). Firing calls concurrently saturates the window and causes 429s
+// that persist for the remainder of the minute. This slot system ensures a
+// minimum of MIN_CALL_INTERVAL_MS between the *start* of any two Zoho API
+// calls within this serverless instance — keeping us well under the limit.
+const MIN_CALL_INTERVAL_MS = 1100 // ≈ 54 calls/minute max; Zoho limit ~100/min
+let _nextSlotAt = 0
+
+async function acquireSlot(): Promise<void> {
+  const now = Date.now()
+  const wait = Math.max(0, _nextSlotAt - now)
+  _nextSlotAt = Math.max(now, _nextSlotAt) + MIN_CALL_INTERVAL_MS
+  if (wait > 0) await sleep(wait)
+}
+
 /**
  * Typed fetch wrapper for Zoho Books API.
- * Automatically attaches the Authorization header.
- * Retries on 429 rate-limit responses with exponential backoff.
+ * - Enforces a global rate limit (one call per 1.1 s) to prevent 429s.
+ * - Retries on 429 with a 60-second pause (enough to outlast the rate-limit
+ *   window) rather than a short exponential backoff that rarely helps.
  */
 export async function zohoFetch<T = unknown>(
   path: string,
   params: Record<string, string> = {},
-  maxAttempts = 4
+  maxAttempts = 3
 ): Promise<T> {
   const token = await getAccessToken()
   const url = new URL(`${BOOKS_BASE}${path}`)
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    if (attempt > 0) {
-      // Exponential backoff: 2s, 4s, 8s — Zoho says "blocked for some time"
-      await sleep(2000 * Math.pow(2, attempt - 1))
-    }
+    // Acquire a rate-limit slot before every attempt (including retries)
+    await acquireSlot()
 
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
-      next: { revalidate: 300 },
+      cache: 'no-store',
     })
 
-    if (res.status === 429 && attempt < maxAttempts - 1) {
+    if (res.status === 429) {
       const body = await res.text()
-      console.warn(`Zoho 429 on ${path} (attempt ${attempt + 1}/${maxAttempts}), retrying…`, body)
-      continue
+      if (attempt < maxAttempts - 1) {
+        // Wait 60 s — enough for Zoho's per-minute window to fully reset
+        console.warn(`Zoho 429 on ${path} (attempt ${attempt + 1}/${maxAttempts}), waiting 60 s…`, body)
+        await sleep(60_000)
+        continue
+      }
+      throw new Error(`Zoho API error 429 for ${path}: ${body}`)
     }
 
     if (!res.ok) {
@@ -144,7 +164,7 @@ export async function zohoFetch<T = unknown>(
     return res.json() as Promise<T>
   }
 
-  throw new Error(`Zoho API ${path} failed after ${maxAttempts} attempts (rate limited)`)
+  throw new Error(`Zoho API ${path} failed after ${maxAttempts} attempts`)
 }
 
 export { BOOKS_BASE }
