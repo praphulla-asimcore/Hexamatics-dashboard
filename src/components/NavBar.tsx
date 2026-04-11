@@ -7,6 +7,7 @@ import { HexaLogo } from '@/components/HexaLogo'
 import { ThemeToggle } from '@/components/ThemeProvider'
 
 const NAV_LINKS = [
+  { href: '/executive',   label: 'Executive Summary' },
   { href: '/dashboard',   label: 'AR Dashboard' },
   { href: '/financials',  label: 'Financial Statements' },
 ]
