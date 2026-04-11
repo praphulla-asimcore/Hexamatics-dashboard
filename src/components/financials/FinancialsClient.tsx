@@ -994,7 +994,7 @@ export function FinancialsClient() {
             setBSConsolidated(c)
             setInsights(generateBSInsights(c))
           } else if (tab === 'cf' && cfStatements.length) {
-            const c = buildConsolidatedCF(cfStatements, label)
+            const c = buildConsolidatedCF(cfStatements)
             setCFConsolidated(c)
             setInsights(generateCFInsights(c))
           }
