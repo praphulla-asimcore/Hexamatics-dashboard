@@ -630,18 +630,41 @@ function emptyCF(): CFData {
   }
 }
 
+// ─── Concurrency limiter ──────────────────────────────────────────────────────
+// Zoho enforces a per-minute API rate limit. Firing all 9 entities in one
+// Promise.all saturates the limit and triggers 429s. Process in batches of 3
+// with a short gap between batches to stay well under the threshold.
+
+async function batchedMap<T, R>(
+  items: T[],
+  fn: (item: T) => Promise<R>,
+  batchSize = 3,
+  delayMs = 1000
+): Promise<R[]> {
+  const results: R[] = []
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize)
+    const batchResults = await Promise.all(batch.map(fn))
+    results.push(...batchResults)
+    if (i + batchSize < items.length) {
+      await new Promise((r) => setTimeout(r, delayMs))
+    }
+  }
+  return results
+}
+
 // ─── All entities batch ───────────────────────────────────────────────────────
 
 export async function fetchAllPL(period: FinancialPeriod): Promise<PLStatement[]> {
-  return Promise.all(ORGS.map((org) => fetchPLStatement(org.id, period)))
+  return batchedMap(ORGS, (org) => fetchPLStatement(org.id, period))
 }
 
 export async function fetchAllBS(period: FinancialPeriod): Promise<BalanceSheetStatement[]> {
-  return Promise.all(ORGS.map((org) => fetchBSStatement(org.id, period)))
+  return batchedMap(ORGS, (org) => fetchBSStatement(org.id, period))
 }
 
 export async function fetchAllCF(period: FinancialPeriod): Promise<CashFlowStatement[]> {
-  return Promise.all(ORGS.map((org) => fetchCFStatement(org.id, period)))
+  return batchedMap(ORGS, (org) => fetchCFStatement(org.id, period))
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

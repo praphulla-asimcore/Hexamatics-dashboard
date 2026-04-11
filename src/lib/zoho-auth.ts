@@ -108,27 +108,43 @@ function sleep(ms: number): Promise<void> {
 /**
  * Typed fetch wrapper for Zoho Books API.
  * Automatically attaches the Authorization header.
+ * Retries on 429 rate-limit responses with exponential backoff.
  */
 export async function zohoFetch<T = unknown>(
   path: string,
-  params: Record<string, string> = {}
+  params: Record<string, string> = {},
+  maxAttempts = 4
 ): Promise<T> {
   const token = await getAccessToken()
   const url = new URL(`${BOOKS_BASE}${path}`)
-
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
 
-  const res = await fetch(url.toString(), {
-    headers: { Authorization: `Zoho-oauthtoken ${token}` },
-    next: { revalidate: 300 },
-  })
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (attempt > 0) {
+      // Exponential backoff: 2s, 4s, 8s — Zoho says "blocked for some time"
+      await sleep(2000 * Math.pow(2, attempt - 1))
+    }
 
-  if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`Zoho API error ${res.status} for ${path}: ${body}`)
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+      next: { revalidate: 300 },
+    })
+
+    if (res.status === 429 && attempt < maxAttempts - 1) {
+      const body = await res.text()
+      console.warn(`Zoho 429 on ${path} (attempt ${attempt + 1}/${maxAttempts}), retrying…`, body)
+      continue
+    }
+
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Zoho API error ${res.status} for ${path}: ${body}`)
+    }
+
+    return res.json() as Promise<T>
   }
 
-  return res.json() as Promise<T>
+  throw new Error(`Zoho API ${path} failed after ${maxAttempts} attempts (rate limited)`)
 }
 
 export { BOOKS_BASE }
