@@ -29,6 +29,18 @@ export const authOptions: AuthOptions = {
     signIn: '/login',
     error: '/login',
   },
+  cookies: {
+    sessionToken: {
+      name: 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        path: '/',
+        secure: true,
+        domain: '.hexamatics.finance',
+      },
+    },
+  },
   callbacks: {
     jwt({ token, user }) {
       if (user) {
