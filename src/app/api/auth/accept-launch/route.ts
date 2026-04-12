@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
         sub: payload.email as string,
       },
       secret: process.env.NEXTAUTH_SECRET!,
+      salt: 'hexa-suite.session-token',
       maxAge: 30 * 24 * 60 * 60, // 30 days
     })
 
