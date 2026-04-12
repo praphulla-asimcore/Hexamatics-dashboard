@@ -1,6 +1,3 @@
-import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
-import { authOptions } from '@/lib/auth'
 import { getDefaultPeriod } from '@/lib/zoho-data'
 import { ExecutiveSummaryClient } from '@/components/ExecutiveSummaryClient'
 
@@ -24,9 +21,7 @@ function emptyDashboard() {
 }
 
 export default async function ExecutivePage() {
-  const session = await getServerSession(authOptions)
-  if (!session) redirect('/login')
-
+  // Auth is handled by middleware
   const period = getDefaultPeriod()
 
   return <ExecutiveSummaryClient initialData={emptyDashboard() as any} initialPeriod={period} />

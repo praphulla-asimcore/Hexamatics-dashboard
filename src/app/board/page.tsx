@@ -1,6 +1,3 @@
-import { getServerSession } from 'next-auth'
-import { redirect } from 'next/navigation'
-import { authOptions } from '@/lib/auth'
 import { getCachedDashboard } from '@/lib/cache'
 import { getDefaultPeriod } from '@/lib/zoho-data'
 import { fmtMyr, fmtPct, fmtChange, ENTITY_COLORS } from '@/lib/format'
@@ -9,9 +6,7 @@ import { HexaLogo } from '@/components/HexaLogo'
 export const dynamic = 'force-dynamic'
 
 export default async function BoardPage() {
-  const session = await getServerSession(authOptions)
-  if (!session) redirect('/login')
-
+  // Auth is handled by middleware
   const period = getDefaultPeriod()
   const data = await getCachedDashboard(period)
   const { group, entities, periodLabel, comparisonLabel } = data
