@@ -10,12 +10,12 @@ export async function GET(req: NextRequest) {
   const token = await getToken({
     req,
     secret: process.env.NEXTAUTH_SECRET,
-    cookieName: 'next-auth.session-token',
+    cookieName: 'hexa-suite.session-token',
   })
 
   return NextResponse.json({
     cookieNamesPresent: cookieNames,
-    hasSessionCookie: cookieNames.includes('next-auth.session-token'),
+    hasSessionCookie: cookieNames.includes('hexa-suite.session-token'),
     tokenFound: !!token,
     tokenEmail: token?.email ?? null,
     secret_prefix: (process.env.NEXTAUTH_SECRET ?? '').slice(0, 8),
