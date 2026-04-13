@@ -47,30 +47,29 @@ export async function GET(req: NextRequest) {
 
     console.log('[accept-launch] Success for', payload.email)
 
-    // Set cookie via raw header — most reliable approach on Vercel.
-    // 200 response (not redirect) so the CDN never strips Set-Cookie.
-    // JS redirect fires after cookie is stored.
-    const maxAge = 30 * 24 * 60 * 60
-    const cookieHeader = `${DASHBOARD_COOKIE}=${sessionToken}; HttpOnly; SameSite=Lax; Path=/; Secure; Max-Age=${maxAge}`
-
+    // Pass the session token to /auth-complete via URL hash.
+    // auth-complete does a same-origin POST to /api/auth/set-session which sets
+    // the httpOnly cookie — same-origin POST cookies are never blocked by browsers.
+    const authCompleteUrl = `/auth-complete?to=${encodeURIComponent(safeUrl)}`
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<script>location.replace(${JSON.stringify(safeUrl)})</script>
-</head><body>Authenticated. Redirecting…</body></html>`
+<script>
+var t = ${JSON.stringify(encodeURIComponent(sessionToken))};
+window.location.replace(${JSON.stringify(authCompleteUrl)} + '#' + t);
+</script>
+</head><body>Completing sign-in…</body></html>`
 
     return new NextResponse(html, {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
         'Cache-Control': 'no-store, private',
-        'Set-Cookie': cookieHeader,
       },
     })
   } catch (err) {
     console.error('[accept-launch] Failed:', err)
-    // Show the error visibly so we can diagnose — do NOT redirect silently
     const msg = err instanceof Error ? err.message : String(err)
     return new NextResponse(
-      `<html><body><h2>accept-launch failed</h2><pre>${msg}</pre><p>Secret prefix: ${process.env.NEXTAUTH_SECRET?.slice(0, 8)}</p><p>Token length: ${launchToken?.length}</p></body></html>`,
+      `<html><body><h2>accept-launch failed</h2><pre>${msg}</pre><p>Secret prefix: ${process.env.NEXTAUTH_SECRET?.slice(0, 8)}</p></body></html>`,
       { status: 200, headers: { 'Content-Type': 'text/html' } }
     )
   }
