@@ -12,7 +12,17 @@ function getSecret() {
 export async function GET(req: NextRequest) {
   const launchToken = req.nextUrl.searchParams.get('token')
   const callbackUrl = req.nextUrl.searchParams.get('callbackUrl') || '/dashboard'
-  const safeUrl = callbackUrl.startsWith('/') ? callbackUrl : '/dashboard'
+
+  // Accept relative paths OR full URLs on the same hostname
+  let safeUrl = '/dashboard'
+  try {
+    const parsed = new URL(callbackUrl)
+    if (parsed.hostname === new URL(req.url).hostname) {
+      safeUrl = parsed.pathname + (parsed.search ?? '')
+    }
+  } catch {
+    if (callbackUrl.startsWith('/')) safeUrl = callbackUrl
+  }
 
   if (!launchToken) {
     return new NextResponse(
@@ -51,6 +61,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store, private',
         'Set-Cookie': cookieHeader,
       },
     })
