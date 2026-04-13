@@ -1,24 +1,19 @@
 import { cookies } from 'next/headers'
-import { decode } from 'next-auth/jwt'
+import { jwtVerify } from 'jose'
 
-const COOKIE = 'hexainsight.session-token'
+const COOKIE = 'hi-session'
 
-/**
- * Reads the session from our custom cookie.
- * Use this instead of getServerSession() in App Router route handlers —
- * getServerSession has known issues reading cookies in this context.
- */
+function getSecret() {
+  return new TextEncoder().encode(process.env.NEXTAUTH_SECRET!)
+}
+
 export async function getSession() {
   const cookieStore = cookies()
   const token = cookieStore.get(COOKIE)?.value
   if (!token) return null
 
   try {
-    const payload = await decode({
-      token,
-      secret: process.env.NEXTAUTH_SECRET!,
-      salt: COOKIE,
-    })
+    const { payload } = await jwtVerify(token, getSecret())
     if (!payload?.email) return null
     return {
       user: {

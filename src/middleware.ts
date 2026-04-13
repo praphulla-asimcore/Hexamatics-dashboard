@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { decode } from 'next-auth/jwt'
+import { jwtVerify } from 'jose'
+
+function getSecret() {
+  return new TextEncoder().encode(process.env.NEXTAUTH_SECRET!)
+}
 
 export async function middleware(req: NextRequest) {
-  const cookieValue = req.cookies.get('hexainsight.session-token')?.value
+  const cookieValue = req.cookies.get('hi-session')?.value
 
-  let token = null
+  let valid = false
   if (cookieValue) {
     try {
-      token = await decode({
-        token: cookieValue,
-        secret: process.env.NEXTAUTH_SECRET!,
-        salt: 'hexainsight.session-token',
-      })
+      await jwtVerify(cookieValue, getSecret())
+      valid = true
     } catch {
-      token = null
+      valid = false
     }
   }
 
-  if (!token) {
+  if (!valid) {
     const launchUrl = `https://www.hexamatics.finance/api/auth/launch-app?callbackUrl=${encodeURIComponent(req.url)}`
     return NextResponse.redirect(launchUrl)
   }

@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { jwtVerify } from 'jose'
-import { encode } from 'next-auth/jwt'
+import { jwtVerify, SignJWT } from 'jose'
 
 export const dynamic = 'force-dynamic'
 
-const DASHBOARD_COOKIE = 'hexainsight.session-token'
+export const DASHBOARD_COOKIE = 'hi-session'
+
+function getSecret() {
+  return new TextEncoder().encode(process.env.NEXTAUTH_SECRET!)
+}
 
 export async function GET(req: NextRequest) {
   const launchToken = req.nextUrl.searchParams.get('token')
   const callbackUrl = req.nextUrl.searchParams.get('callbackUrl') || '/dashboard'
+  const safeUrl = callbackUrl.startsWith('/') ? callbackUrl : '/dashboard'
 
   if (!launchToken) {
     console.error('[accept-launch] No token param')
@@ -16,45 +20,33 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET)
-    const { payload } = await jwtVerify(launchToken, secret)
-
+    const { payload } = await jwtVerify(launchToken, getSecret())
     if (!payload.email) throw new Error('No email in token')
 
-    const sessionToken = await encode({
-      token: {
-        email: payload.email as string,
-        name: payload.name as string,
-        role: (payload.role as string) ?? 'user',
-        sub: payload.email as string,
-      },
-      secret: process.env.NEXTAUTH_SECRET!,
-      salt: DASHBOARD_COOKIE,
+    // Sign a simple HS256 JWT — no salt/HKDF complexity
+    const sessionToken = await new SignJWT({
+      email: payload.email,
+      name: payload.name ?? '',
+      role: payload.role ?? 'user',
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('30d')
+      .sign(getSecret())
+
+    console.log('[accept-launch] Success for', payload.email, 'token length:', sessionToken.length)
+
+    const response = NextResponse.redirect(new URL(safeUrl, req.url))
+    response.cookies.set(DASHBOARD_COOKIE, sessionToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      secure: true,
       maxAge: 30 * 24 * 60 * 60,
     })
-
-    console.log('[accept-launch] Success for', payload.email, '— setting cookie via HTML response')
-
-    // Return a 200 HTML page that sets the cookie and redirects.
-    // This is more reliable than NextResponse.redirect() + Set-Cookie
-    // in cross-origin redirect chains where some browsers drop the cookie.
-    const safeUrl = callbackUrl.startsWith('/') ? callbackUrl : '/dashboard'
-    const cookieStr = `${DASHBOARD_COOKIE}=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`
-
-    return new NextResponse(
-      `<!DOCTYPE html><html><head><meta charset="utf-8">
-      <script>window.location.replace(${JSON.stringify(safeUrl)})</script>
-      </head><body></body></html>`,
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/html',
-          'Set-Cookie': cookieStr,
-        },
-      }
-    )
+    return response
   } catch (err) {
-    console.error('[accept-launch] Token verification failed:', err)
+    console.error('[accept-launch] Failed:', err)
     return NextResponse.redirect('https://www.hexamatics.finance/login')
   }
 }

@@ -11,11 +11,12 @@ export async function GET(req: NextRequest) {
   const secret = process.env.NEXTAUTH_SECRET!
 
   // Check the dashboard-specific cookie (set by accept-launch)
-  const dashboardCookie = req.cookies.get('hexainsight.session-token')?.value
+  const dashboardCookie = req.cookies.get('hi-session')?.value
   let dashboardToken = null
   if (dashboardCookie) {
     try {
-      dashboardToken = await decode({ token: dashboardCookie, secret, salt: 'hexainsight.session-token' })
+      const { payload } = await jwtVerify(dashboardCookie, new TextEncoder().encode(secret))
+      dashboardToken = payload
     } catch { /* ignore */ }
   }
 
