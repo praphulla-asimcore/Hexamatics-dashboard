@@ -31,13 +31,12 @@ export const authOptions: AuthOptions = {
   },
   cookies: {
     sessionToken: {
-      name: 'next-auth.session-token',
+      name: 'hexainsight.session-token',
       options: {
         httpOnly: true,
         sameSite: 'lax' as const,
         path: '/',
         secure: true,
-        domain: '.hexamatics.finance',
       },
     },
   },
