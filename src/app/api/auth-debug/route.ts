@@ -34,6 +34,18 @@ export async function GET(req: NextRequest) {
     } catch { /* ignore */ }
   }
 
+  // Inspect raw token structure without needing the secret
+  let tokenParts = 0
+  let tokenHeader: Record<string, unknown> | null = null
+  if (cookieValue) {
+    const parts = cookieValue.split('.')
+    tokenParts = parts.length
+    try {
+      const headerJson = Buffer.from(parts[0], 'base64url').toString('utf8')
+      tokenHeader = JSON.parse(headerJson)
+    } catch { /* ignore */ }
+  }
+
   const found = tokenEmptySalt ?? tokenNamedSalt ?? tokenJws
 
   return NextResponse.json({
@@ -44,5 +56,6 @@ export async function GET(req: NextRequest) {
     tokenFoundJws: !!tokenJws,
     tokenEmail: (found as any)?.email ?? null,
     secret_prefix: secret.slice(0, 8),
+    rawToken: { parts: tokenParts, header: tokenHeader },
   })
 }
