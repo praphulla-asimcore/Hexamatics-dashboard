@@ -10,7 +10,7 @@ export async function middleware(req: NextRequest) {
       token = await decode({
         token: cookieValue,
         secret: process.env.NEXTAUTH_SECRET!,
-        salt: '',
+        salt: 'hexa-suite.session-token',
       })
     } catch {
       token = null
@@ -18,8 +18,8 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!token) {
-    const suiteLogin = `https://hexamatics.finance/login?callbackUrl=${encodeURIComponent(req.url)}`
-    return NextResponse.redirect(suiteLogin)
+    const launchUrl = `https://www.hexamatics.finance/api/launch?callbackUrl=${encodeURIComponent(req.url)}`
+    return NextResponse.redirect(launchUrl)
   }
 
   return NextResponse.next()
