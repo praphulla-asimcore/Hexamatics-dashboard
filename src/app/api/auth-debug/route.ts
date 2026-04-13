@@ -46,6 +46,6 @@ export async function GET(req: NextRequest) {
       emptySalt: !!suiteTokenEmptySalt,
       jws: !!suiteTokenJws,
     },
-    secret_prefix: secret.slice(0, 8),
+    secret_prefix: secret.slice(0, 32),
   })
 }
