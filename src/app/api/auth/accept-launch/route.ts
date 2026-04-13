@@ -15,15 +15,16 @@ export async function GET(req: NextRequest) {
   const safeUrl = callbackUrl.startsWith('/') ? callbackUrl : '/dashboard'
 
   if (!launchToken) {
-    console.error('[accept-launch] No token param')
-    return NextResponse.redirect('https://www.hexamatics.finance/login')
+    return new NextResponse(
+      `<html><body><h2>accept-launch: no token param</h2></body></html>`,
+      { status: 400, headers: { 'Content-Type': 'text/html' } }
+    )
   }
 
   try {
     const { payload } = await jwtVerify(launchToken, getSecret())
     if (!payload.email) throw new Error('No email in token')
 
-    // Sign a simple HS256 JWT — no salt/HKDF complexity
     const sessionToken = await new SignJWT({
       email: payload.email,
       name: payload.name ?? '',
@@ -34,29 +35,32 @@ export async function GET(req: NextRequest) {
       .setExpirationTime('30d')
       .sign(getSecret())
 
-    console.log('[accept-launch] Success for', payload.email, 'token length:', sessionToken.length)
+    console.log('[accept-launch] Success for', payload.email)
 
-    // Use a 200 HTML response instead of a redirect — Vercel edge can strip
-    // Set-Cookie headers from 3xx responses, so we set the cookie on a 200
-    // and let JS handle the redirect.
+    // Set cookie via raw header — most reliable approach on Vercel.
+    // 200 response (not redirect) so the CDN never strips Set-Cookie.
+    // JS redirect fires after cookie is stored.
+    const maxAge = 30 * 24 * 60 * 60
+    const cookieHeader = `${DASHBOARD_COOKIE}=${sessionToken}; HttpOnly; SameSite=Lax; Path=/; Secure; Max-Age=${maxAge}`
+
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <script>location.replace(${JSON.stringify(safeUrl)})</script>
-</head><body>Redirecting…</body></html>`
+</head><body>Authenticated. Redirecting…</body></html>`
 
-    const response = new NextResponse(html, {
+    return new NextResponse(html, {
       status: 200,
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Set-Cookie': cookieHeader,
+      },
     })
-    response.cookies.set(DASHBOARD_COOKIE, sessionToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      secure: true,
-      maxAge: 30 * 24 * 60 * 60,
-    })
-    return response
   } catch (err) {
     console.error('[accept-launch] Failed:', err)
-    return NextResponse.redirect('https://www.hexamatics.finance/login')
+    // Show the error visibly so we can diagnose — do NOT redirect silently
+    const msg = err instanceof Error ? err.message : String(err)
+    return new NextResponse(
+      `<html><body><h2>accept-launch failed</h2><pre>${msg}</pre><p>Secret prefix: ${process.env.NEXTAUTH_SECRET?.slice(0, 8)}</p><p>Token length: ${launchToken?.length}</p></body></html>`,
+      { status: 200, headers: { 'Content-Type': 'text/html' } }
+    )
   }
 }
