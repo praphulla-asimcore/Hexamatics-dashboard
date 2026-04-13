@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getToken } from 'next-auth/jwt'
+import { decode } from 'next-auth/jwt'
 
 export async function middleware(req: NextRequest) {
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-    cookieName: 'hexa-suite.session-token',
-  })
+  const cookieValue = req.cookies.get('hexa-suite.session-token')?.value
+
+  let token = null
+  if (cookieValue) {
+    try {
+      token = await decode({
+        token: cookieValue,
+        secret: process.env.NEXTAUTH_SECRET!,
+        salt: '',
+      })
+    } catch {
+      token = null
+    }
+  }
 
   if (!token) {
     const suiteLogin = `https://hexamatics.finance/login?callbackUrl=${encodeURIComponent(req.url)}`
