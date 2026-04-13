@@ -4,8 +4,6 @@ import { encode } from 'next-auth/jwt'
 
 export const dynamic = 'force-dynamic'
 
-// Cookie name used only on reporting.hexamatics.finance — avoids conflict
-// with the suite's hexa-suite.session-token (domain .hexamatics.finance)
 const DASHBOARD_COOKIE = 'hexainsight.session-token'
 
 export async function GET(req: NextRequest) {
@@ -13,7 +11,7 @@ export async function GET(req: NextRequest) {
   const callbackUrl = req.nextUrl.searchParams.get('callbackUrl') || '/dashboard'
 
   if (!launchToken) {
-    console.error('[accept-launch] No token param — redirecting to suite login')
+    console.error('[accept-launch] No token param')
     return NextResponse.redirect('https://www.hexamatics.finance/login')
   }
 
@@ -21,9 +19,7 @@ export async function GET(req: NextRequest) {
     const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET)
     const { payload } = await jwtVerify(launchToken, secret)
 
-    if (!payload.email) {
-      throw new Error('Invalid launch token: no email')
-    }
+    if (!payload.email) throw new Error('No email in token')
 
     const sessionToken = await encode({
       token: {
@@ -37,16 +33,26 @@ export async function GET(req: NextRequest) {
       maxAge: 30 * 24 * 60 * 60,
     })
 
-    const response = NextResponse.redirect(new URL(callbackUrl, req.url))
-    response.cookies.set(DASHBOARD_COOKIE, sessionToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      secure: true,
-      maxAge: 30 * 24 * 60 * 60,
-    })
+    console.log('[accept-launch] Success for', payload.email, '— setting cookie via HTML response')
 
-    return response
+    // Return a 200 HTML page that sets the cookie and redirects.
+    // This is more reliable than NextResponse.redirect() + Set-Cookie
+    // in cross-origin redirect chains where some browsers drop the cookie.
+    const safeUrl = callbackUrl.startsWith('/') ? callbackUrl : '/dashboard'
+    const cookieStr = `${DASHBOARD_COOKIE}=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}`
+
+    return new NextResponse(
+      `<!DOCTYPE html><html><head><meta charset="utf-8">
+      <script>window.location.replace(${JSON.stringify(safeUrl)})</script>
+      </head><body></body></html>`,
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/html',
+          'Set-Cookie': cookieStr,
+        },
+      }
+    )
   } catch (err) {
     console.error('[accept-launch] Token verification failed:', err)
     return NextResponse.redirect('https://www.hexamatics.finance/login')
