@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getSession } from '@/lib/session'
 import { getUsers, deleteUser, createInvite, getInvites, revokeInvite } from '@/lib/users'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 async function requireAdmin(req: NextRequest) {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   if (!session || (session.user as any).role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
@@ -27,7 +26,7 @@ export async function POST(req: NextRequest) {
   const denied = await requireAdmin(req)
   if (denied) return denied
 
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   const { action, email, name, role, userId, token } = await req.json()
 
   try {

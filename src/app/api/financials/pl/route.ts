@@ -1,6 +1,5 @@
-import { getServerSession } from 'next-auth'
+import { getSession } from '@/lib/session'
 import { NextResponse } from 'next/server'
-import { authOptions } from '@/lib/auth'
 import { getCachedPL, getCachedAllPL } from '@/lib/financial-cache'
 import {
   buildConsolidatedPL,
@@ -26,7 +25,7 @@ function parsePeriod(sp: URLSearchParams): FinancialPeriod {
 }
 
 export async function GET(req: Request) {
-  const session = await getServerSession(authOptions)
+  const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const sp = new URL(req.url).searchParams
