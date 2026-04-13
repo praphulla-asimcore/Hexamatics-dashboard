@@ -3,8 +3,6 @@ import { jwtVerify, SignJWT } from 'jose'
 
 export const dynamic = 'force-dynamic'
 
-export const DASHBOARD_COOKIE = 'hi-session'
-
 function getSecret() {
   return new TextEncoder().encode(process.env.NEXTAUTH_SECRET!)
 }
