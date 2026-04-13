@@ -8,54 +8,44 @@ export async function GET(req: NextRequest) {
   const cookieHeader = req.headers.get('cookie') ?? ''
   const cookieNames = cookieHeader.split(';').map(c => c.trim().split('=')[0]).filter(Boolean)
 
-  const cookieValue = req.cookies.get('hexa-suite.session-token')?.value
   const secret = process.env.NEXTAUTH_SECRET!
 
-  let tokenEmptySalt = null
-  let tokenNamedSalt = null
-  let tokenJws: Record<string, unknown> | null = null
-
-  if (cookieValue) {
-    // Try next-auth JWE with empty salt (old next-auth encoding)
+  // Check the dashboard-specific cookie (set by accept-launch)
+  const dashboardCookie = req.cookies.get('hexainsight.session-token')?.value
+  let dashboardToken = null
+  if (dashboardCookie) {
     try {
-      tokenEmptySalt = await decode({ token: cookieValue, secret, salt: '' })
-    } catch { /* ignore */ }
-
-    // Try next-auth JWE with cookie name as salt (new next-auth encoding)
-    try {
-      tokenNamedSalt = await decode({ token: cookieValue, secret, salt: 'hexa-suite.session-token' })
-    } catch { /* ignore */ }
-
-    // Try plain signed JWT (JWS / HS256) — used by some custom auth setups
-    try {
-      const key = new TextEncoder().encode(secret)
-      const { payload } = await jwtVerify(cookieValue, key)
-      tokenJws = payload as Record<string, unknown>
+      dashboardToken = await decode({ token: dashboardCookie, secret, salt: 'hexainsight.session-token' })
     } catch { /* ignore */ }
   }
 
-  // Inspect raw token structure without needing the secret
-  let tokenParts = 0
-  let tokenHeader: Record<string, unknown> | null = null
-  if (cookieValue) {
-    const parts = cookieValue.split('.')
-    tokenParts = parts.length
+  // Check the suite cookie (shared via .hexamatics.finance domain)
+  const suiteCookie = req.cookies.get('hexa-suite.session-token')?.value
+  let suiteTokenNamedSalt = null
+  let suiteTokenEmptySalt = null
+  let suiteTokenJws = null
+  if (suiteCookie) {
+    try { suiteTokenNamedSalt = await decode({ token: suiteCookie, secret, salt: 'hexa-suite.session-token' }) } catch { /* ignore */ }
+    try { suiteTokenEmptySalt = await decode({ token: suiteCookie, secret, salt: '' }) } catch { /* ignore */ }
     try {
-      const headerJson = Buffer.from(parts[0], 'base64url').toString('utf8')
-      tokenHeader = JSON.parse(headerJson)
+      const { payload } = await jwtVerify(suiteCookie, new TextEncoder().encode(secret))
+      suiteTokenJws = payload
     } catch { /* ignore */ }
   }
-
-  const found = tokenEmptySalt ?? tokenNamedSalt ?? tokenJws
 
   return NextResponse.json({
     cookieNamesPresent: cookieNames,
-    hasSessionCookie: cookieNames.includes('hexa-suite.session-token'),
-    tokenFoundEmptySalt: !!tokenEmptySalt,
-    tokenFoundNamedSalt: !!tokenNamedSalt,
-    tokenFoundJws: !!tokenJws,
-    tokenEmail: (found as any)?.email ?? null,
+    dashboard: {
+      cookiePresent: !!dashboardCookie,
+      tokenDecoded: !!dashboardToken,
+      email: (dashboardToken as any)?.email ?? null,
+    },
+    suite: {
+      cookiePresent: !!suiteCookie,
+      namedSalt: !!suiteTokenNamedSalt,
+      emptySalt: !!suiteTokenEmptySalt,
+      jws: !!suiteTokenJws,
+    },
     secret_prefix: secret.slice(0, 8),
-    rawToken: { parts: tokenParts, header: tokenHeader },
   })
 }

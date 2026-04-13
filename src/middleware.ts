@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { decode } from 'next-auth/jwt'
 
 export async function middleware(req: NextRequest) {
-  const cookieValue = req.cookies.get('hexa-suite.session-token')?.value
+  const cookieValue = req.cookies.get('hexainsight.session-token')?.value
 
   let token = null
   if (cookieValue) {
@@ -10,7 +10,7 @@ export async function middleware(req: NextRequest) {
       token = await decode({
         token: cookieValue,
         secret: process.env.NEXTAUTH_SECRET!,
-        salt: 'hexa-suite.session-token',
+        salt: 'hexainsight.session-token',
       })
     } catch {
       token = null
