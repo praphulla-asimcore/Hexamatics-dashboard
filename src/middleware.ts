@@ -18,7 +18,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (!token) {
-    const launchUrl = `https://www.hexamatics.finance/api/launch?callbackUrl=${encodeURIComponent(req.url)}`
+    const launchUrl = `https://www.hexamatics.finance/api/auth/launch-app?callbackUrl=${encodeURIComponent(req.url)}`
     return NextResponse.redirect(launchUrl)
   }
 
