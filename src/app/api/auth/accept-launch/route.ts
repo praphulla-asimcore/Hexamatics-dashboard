@@ -36,7 +36,17 @@ export async function GET(req: NextRequest) {
 
     console.log('[accept-launch] Success for', payload.email, 'token length:', sessionToken.length)
 
-    const response = NextResponse.redirect(new URL(safeUrl, req.url))
+    // Use a 200 HTML response instead of a redirect — Vercel edge can strip
+    // Set-Cookie headers from 3xx responses, so we set the cookie on a 200
+    // and let JS handle the redirect.
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<script>location.replace(${JSON.stringify(safeUrl)})</script>
+</head><body>Redirecting…</body></html>`
+
+    const response = new NextResponse(html, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    })
     response.cookies.set(DASHBOARD_COOKIE, sessionToken, {
       httpOnly: true,
       sameSite: 'lax',
