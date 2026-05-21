@@ -11,10 +11,10 @@
  * Confirmed field names from live API:
  *   { currency_code, unit, rate: { date, buying_rate, selling_rate, middle_rate } }
  *
- * Unit handling: some currencies are quoted per 100 units (e.g. IDR, PHP, NPR, MMK).
- * Always divide middle_rate by unit to get the per-1-unit MYR rate.
- *
- * Currencies NOT on BNM (use orgs.ts fallback): BDT
+ * Unit handling: BNM quotes some currencies per 100 units (shown as "NPR100",
+ * "IDR100", "PHP100" on the website). The API `unit` field should reflect this,
+ * but we also hardcode UNIT_PER_100 as a safety net so the division always
+ * happens for these currencies regardless of what the API returns for `unit`.
  */
 
 import { ORG_MAP } from './orgs'
@@ -28,6 +28,10 @@ const BNM_SUPPORTED = new Set([
   'CHF', 'THB', 'IDR', 'PHP', 'KRW', 'TWD', 'INR', 'BND', 'AED', 'SAR',
   'VND', 'DKK', 'SEK', 'NOK', 'NPR', 'MMK', 'PKR', 'KHR', 'EGP', 'SDR',
 ])
+
+// BNM quotes these currencies per 100 units on both the website and API.
+// Hardcoding ensures correct division even if the API `unit` field is missing/wrong.
+const UNIT_PER_100 = new Set(['NPR', 'IDR', 'PHP', 'KHR', 'VND', 'MMK'])
 
 // In-memory cache — keyed by currency so we fetch the full list once per process
 let cachedRates: Map<string, number> | null = null
@@ -55,12 +59,13 @@ async function getAllRates(): Promise<Map<string, number>> {
     const map = new Map<string, number>()
     for (const r of data) {
       const code: string = r.currency_code?.toUpperCase()
-      const unit: number = Number(r.unit) || 1
+      // Use hardcoded 100 for known per-100 currencies; fall back to API unit field
+      const unit: number = UNIT_PER_100.has(code) ? 100 : (Number(r.unit) || 1)
       // Use middle_rate, fall back to selling_rate then buying_rate
       const raw: number =
         r.rate?.middle_rate ?? r.rate?.selling_rate ?? r.rate?.buying_rate ?? 0
       if (code && raw > 0) {
-        // Divide by unit: e.g. IDR unit=100 means rate is per 100 IDR → per 1 IDR
+        // Divide by unit: e.g. NPR unit=100 → rate shown is MYR per 100 NPR → divide to get per 1 NPR
         map.set(code, raw / unit)
       }
     }

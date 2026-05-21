@@ -51,14 +51,6 @@ export const ORGS: OrgConfig[] = [
     fxToMyr: 0.00214,
   },
   {
-    id: '759722348',
-    name: 'Hexamatic Bangladesh Ltd',
-    short: 'Bangladesh',
-    currency: 'BDT',
-    country: 'BD',
-    fxToMyr: 0.038,
-  },
-  {
     id: '883796614',
     name: 'HexaHR Sdn Bhd',
     short: 'HexaHR (MY)',

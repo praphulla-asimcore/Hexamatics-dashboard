@@ -1103,7 +1103,7 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
               </h3>
               <EntityTable entities={entities} periodLabel={periodLabel} comparisonLabel={comparisonLabel} />
               <p className="text-xs text-gray-700 mt-4">
-                FX rates (indicative) — SGD: 3.35 · IDR: 0.000284 · PHP: 0.077 · MMK: 0.00214 · BDT: 0.038 · NPR: 0.0284 per MYR ·
+                FX rates via BNM — SGD: 3.35 · IDR/100: 0.000284 · PHP/100: 0.077 · MMK: 0.00214 · NPR/100: 0.0284 per MYR ·
                 Live data from Zoho Books
               </p>
             </div>

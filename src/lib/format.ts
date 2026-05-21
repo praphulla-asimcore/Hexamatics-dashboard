@@ -71,7 +71,7 @@ export function growthColor(pct: number): string {
   return 'text-red-500'
 }
 
-// HEXA brand gradient entity colors (9 entities: pink → blue)
+// HEXA brand gradient entity colors (8 entities: pink → blue)
 export const ENTITY_COLORS = [
   '#E8177A', // Servcomm MY
   '#C219A0', // Singapore
@@ -79,7 +79,6 @@ export const ENTITY_COLORS = [
   '#8519E0', // Indonesia
   '#6525E8', // Philippines
   '#4835E8', // Myanmar
-  '#3045E8', // Bangladesh
-  '#1855E8', // HexaHR
+  '#2040E8', // HexaHR
   '#1B1BE8', // Hexa Consulting
 ]

@@ -1409,54 +1409,213 @@ export function FinancialsClient() {
       {/* Print styles */}
       <style>{`
         @media print {
-          @page { size: A4; margin: 16mm 14mm; }
-          body { background: white !important; color: #0f172a !important; font-family: 'Inter', sans-serif !important; font-size: 10pt !important; }
 
-          /* Hide all interactive UI */
-          .print\\:hidden, nav, header { display: none !important; }
-
-          /* Reset glass effects */
-          * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
-              box-shadow: none !important; }
-
-          /* Section containers */
-          [class*="bg-gray-900"], [class*="bg-gray-800"] {
-            background: white !important; border: 1px solid #e5e7eb !important;
-            border-radius: 6px !important; break-inside: avoid;
+          /* ── Page setup ─────────────────────────────────────────────── */
+          @page {
+            size: A4 portrait;
+            margin: 14mm 12mm 16mm 12mm;
           }
 
-          /* Typography */
-          .text-white, .text-gray-200, .text-gray-300 { color: #0f172a !important; }
-          .text-gray-400, .text-gray-500 { color: #374151 !important; }
-          .text-gray-600 { color: #6b7280 !important; }
-          .text-emerald-400 { color: #059669 !important; }
-          .text-red-400     { color: #dc2626 !important; }
-          .text-amber-400   { color: #d97706 !important; }
-          .text-purple-300, .text-purple-400 { color: #7c3aed !important; }
+          /* ── Force background/color printing ────────────────────────── */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
 
-          /* Tables */
-          table { width: 100% !important; border-collapse: collapse !important; page-break-inside: avoid; }
-          th, td { padding: 4pt 6pt !important; font-size: 8pt !important; }
-          thead tr { border-bottom: 1.5pt solid #8B18E8 !important; }
-          tbody tr { border-bottom: 0.5pt solid #f3f4f6 !important; }
+          /* ── Global ─────────────────────────────────────────────────── */
+          body {
+            background: white !important;
+            color: #0f172a !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+            font-size: 9pt !important;
+            line-height: 1.45 !important;
+          }
 
-          /* Borders */
-          [class*="border-gray-700"], [class*="border-gray-800"] { border-color: #e5e7eb !important; }
-          .border-hexa-purple, [class*="border-t-2"] { border-color: #8B18E8 !important; }
+          /* ── Remove animations / transitions / blur ─────────────────── */
+          * {
+            animation: none !important;
+            transition: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            box-shadow: none !important;
+          }
 
-          /* Gradient backgrounds — convert to solid purple tint */
-          [class*="bg-hexa-gradient"], .tab-pill-active { background: #8B18E8 !important; }
+          /* ── Hide interactive / screen-only UI ──────────────────────── */
+          nav,
+          .print\\:hidden,
+          button, select, input[type="date"],
+          .light-bg-layer { display: none !important; }
 
-          /* Print header (shown only in print) */
-          .print-report-header { display: flex !important; }
+          /* ── Show print-only elements ────────────────────────────────── */
+          .hidden.print\\:block { display: block !important; }
+          .hidden.print\\:flex  { display: flex  !important; }
 
-          /* Section accent bars */
-          .section-accent-bar { background: #8B18E8 !important; height: 3pt !important; }
+          /* ── Full width, no padding ──────────────────────────────────── */
+          .max-w-screen-2xl { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+          .px-4, .px-6, .sm\\:px-6 { padding-left: 0 !important; padding-right: 0 !important; }
 
-          /* Insights */
+          /* ── Page break control ──────────────────────────────────────── */
+          .space-y-5 > *, .space-y-6 > * { break-inside: avoid; margin-bottom: 10pt; }
+
+          /* ── Glass containers → flat white with border ───────────────── */
+          [class*="bg-white\\/"],
+          [class*="bg-gray-9"],
+          [class*="bg-gray-8"],
+          [class*="backdrop-blur"] {
+            background: white !important;
+            border-radius: 6px !important;
+          }
+
+          /* ── Semi-transparent overlays → transparent ─────────────────── */
+          [class*="bg-black\\/"],
+          [class*="bg-purple-50\\/"],
+          [class*="bg-emerald-50\\/"],
+          [class*="bg-red-50\\/"] {
+            background: transparent !important;
+          }
+
+          /* ── Borders ─────────────────────────────────────────────────── */
+          [class*="border-purple-"],
+          [class*="border-black\\/"],
+          [class*="border-gray-7"],
+          [class*="border-gray-8"] {
+            border-color: #d1d5db !important;
+          }
+          .border-t-2 { border-top-width: 1.5pt !important; }
+          .border-t-2.border-hexa-purple,
+          [class*="border-hexa-purple"] { border-color: #8B18E8 !important; }
+          [class*="border-emerald-3"]   { border-color: #6ee7b7 !important; }
+          [class*="border-red-3"]       { border-color: #fca5a5 !important; }
+
+          /* ── Section accent bar ──────────────────────────────────────── */
+          .section-accent-bar {
+            height: 2.5pt !important;
+            background: linear-gradient(90deg, #E8177A, #8B18E8, #1B1BE8) !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+          }
+
+          /* ── KPI cards ───────────────────────────────────────────────── */
+          .kpi-card {
+            background: #f8f5ff !important;
+            border: 0.5pt solid #c4b5f4 !important;
+            border-radius: 4px !important;
+            padding: 6pt 8pt !important;
+          }
+          .kpi-top-strip {
+            background: linear-gradient(90deg, #E8177A, #8B18E8, #1B1BE8) !important;
+            height: 2pt !important;
+          }
+
+          /* ── Typography ──────────────────────────────────────────────── */
+          .text-white, .text-gray-100,
+          .text-gray-200, .text-gray-300 { color: #0f172a !important; }
+          .text-gray-400, .text-gray-500 { color: #4b5563 !important; }
+          .text-gray-600, .text-gray-700 { color: #6b7280 !important; }
+          .text-gray-800, .text-gray-900 { color: #111827 !important; }
+          .text-hexa-purple              { color: #7c3aed !important; }
+          .text-emerald-400, .text-emerald-600,
+          .text-emerald-700              { color: #059669 !important; }
+          .text-red-400, .text-red-500,
+          .text-red-600                  { color: #dc2626 !important; }
+          .text-amber-400, .text-amber-500 { color: #d97706 !important; }
+          .text-purple-300, .text-purple-400,
+          .text-purple-500               { color: #7c3aed !important; }
+
+          /* ── Tables ──────────────────────────────────────────────────── */
+          table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            break-inside: avoid;
+            font-size: 8pt !important;
+          }
+          th {
+            padding: 3pt 5pt 3pt 5pt !important;
+            font-size: 7pt !important;
+            font-weight: 700 !important;
+            color: #374151 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.04em !important;
+            border-bottom: 1.2pt solid #8B18E8 !important;
+            background: #f5f3ff !important;
+          }
+          td {
+            padding: 3pt 5pt !important;
+            color: #0f172a !important;
+            vertical-align: middle !important;
+          }
+          tbody tr { border-bottom: 0.4pt solid #f3f4f6 !important; }
+          tbody tr:last-child { border-bottom: none !important; }
+
+          /* ── Table row highlights (total / gross profit rows) ────────── */
+          [class*="border-t-2"][class*="bg-purple-50"] {
+            background: #f5f3ff !important;
+            border-top: 1.5pt solid #8B18E8 !important;
+          }
+          [class*="border-t-2"][class*="bg-emerald-50"] {
+            background: #ecfdf5 !important;
+            border-top: 1.5pt solid #10b981 !important;
+          }
+          [class*="border-t-2"][class*="bg-gray-50"] {
+            background: #f9fafb !important;
+          }
+
+          /* ── Table dividers ──────────────────────────────────────────── */
+          [class*="divide-purple-"] > * + * { border-top: 0.3pt solid #ede9fe !important; }
+          [class*="divide-gray-"]   > * + * { border-top: 0.3pt solid #f3f4f6 !important; }
+          [class*="divide-red-"]    > * + * { border-top: 0.3pt solid #fee2e2 !important; }
+
+          /* ── Statement-specific rows ─────────────────────────────────── */
+          .border-t.border-purple-100 { border-top: 0.5pt solid #ddd6fe !important; }
+          .bg-purple-50\\/40, .bg-purple-50\\/60 { background: #f5f3ff !important; }
+          .bg-emerald-50\\/40 { background: #ecfdf5 !important; }
+          .bg-red-50\\/40 { background: #fff1f2 !important; }
+
+          /* ── Cascade bars — inline styles print with color-adjust ─── */
+          /* Already handled by print-color-adjust: exact above          */
+
+          /* ── Gradient backgrounds ─────────────────────────────────────── */
+          [class*="bg-hexa-gradient"] {
+            background: linear-gradient(90deg, #E8177A, #8B18E8, #1B1BE8) !important;
+          }
+
+          /* ── Hover states — reset ────────────────────────────────────── */
+          [class*="hover\\:bg-"] { background: transparent !important; }
+
+          /* ── Insight/alert banners ───────────────────────────────────── */
           .alert-critical { background: #fef2f2 !important; border-color: #fca5a5 !important; color: #b91c1c !important; }
           .alert-warning  { background: #fffbeb !important; border-color: #fcd34d !important; color: #92400e !important; }
           .alert-good     { background: #ecfdf5 !important; border-color: #6ee7b7 !important; color: #065f46 !important; }
+          .alert-info     { background: #eff6ff !important; border-color: #93c5fd !important; color: #1e40af !important; }
+
+          /* Insight panel items */
+          [class*="rounded-lg border p-3"],
+          [class*="rounded-lg border p-4"] {
+            padding: 4pt 6pt !important;
+            margin-bottom: 3pt !important;
+            border-width: 0.5pt !important;
+          }
+
+          /* ── Print header ────────────────────────────────────────────── */
+          .hidden.print\\:block .border-b-2 {
+            border-bottom: 2pt solid #8B18E8 !important;
+            padding-bottom: 6pt !important;
+            margin-bottom: 8pt !important;
+          }
+
+          /* ── Spacing reductions ──────────────────────────────────────── */
+          .p-5, .p-6 { padding: 8pt !important; }
+          .p-4        { padding: 6pt !important; }
+          .mb-4, .mb-5, .mb-6 { margin-bottom: 6pt !important; }
+          .gap-3, .gap-4 { gap: 6pt !important; }
+          .space-y-3 > * + *, .space-y-2 > * + * { margin-top: 3pt !important; }
+
+          /* ── Grid layouts ────────────────────────────────────────────── */
+          .grid { display: grid !important; }
+          .grid-cols-2 { grid-template-columns: repeat(2, 1fr) !important; }
+          .lg\\:grid-cols-4, .lg\\:grid-cols-3 { grid-template-columns: repeat(4, 1fr) !important; }
+          .lg\\:col-span-2 { grid-column: span 2 !important; }
         }
       `}</style>
 
