@@ -20,6 +20,8 @@ function periodKey(period: PeriodDef): string {
     period.half ?? '',
     period.comparison ?? 'previous',
     rollingKey,
+    period.customFrom ?? '',
+    period.customTo   ?? '',
   ].join('_')
 }
 

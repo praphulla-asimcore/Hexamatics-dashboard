@@ -52,18 +52,15 @@ function buildArParams(p: PeriodDef): URLSearchParams {
 }
 
 function buildFinParams(p: PeriodDef): URLSearchParams {
-  let finMode = p.mode as string
+  // ytd → year: getFinancialDateRange for year already ends at last complete month,
+  //             and year mode preserves comparison period computation.
+  // rolling12 → custom with explicit 12-month window (no native equivalent in Zoho API).
+  let finMode    = p.mode === 'ytd' ? 'year' : p.mode as string
   let customFrom = p.customFrom
   let customTo   = p.customTo
 
-  if (p.mode === 'ytd') {
-    const now = new Date()
-    const endMonth = p.year < now.getFullYear() ? 12 : Math.max(now.getMonth(), 1)
-    const lastDay  = new Date(p.year, endMonth, 0).getDate()
-    customFrom = `${p.year}-01-01`
-    customTo   = `${p.year}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+  if (p.mode === 'rolling12') {
     finMode = 'custom'
-  } else if (p.mode === 'rolling12') {
     const now      = new Date()
     const endMonth = Math.max(now.getMonth(), 1)
     const endYear  = now.getFullYear()
@@ -71,7 +68,6 @@ function buildFinParams(p: PeriodDef): URLSearchParams {
     const lastDay  = new Date(endYear, endMonth, 0).getDate()
     customFrom = `${startD.getFullYear()}-${String(startD.getMonth() + 1).padStart(2, '0')}-01`
     customTo   = `${endYear}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-    finMode = 'custom'
   }
 
   const params = new URLSearchParams({
@@ -305,6 +301,61 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
 
   return (
     <div className="min-h-screen bg-gray-950 print:bg-white">
+      <style>{`
+        @media print {
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          body { background: #fff !important; }
+          nav, .print\\:hidden { display: none !important; }
+          .print\\:block { display: block !important; }
+          .print\\:flex  { display: flex  !important; }
+          @page { size: A4 portrait; margin: 14mm 12mm; }
+
+          /* KPI row */
+          .kpi-card { break-inside: avoid; border: 0.5pt solid #e5e7eb !important; background: #fff !important; box-shadow: none !important; }
+          .kpi-card::after { display: none !important; }
+          .kpi-top-strip { display: block !important; }
+
+          /* Sections */
+          .bg-gray-900 { background: #fff !important; backdrop-filter: none !important; box-shadow: none !important; }
+          .bg-gray-800\\/40, .bg-gray-800\\/30, .bg-gray-800\\/50 { background: #f9fafb !important; }
+
+          /* Tables */
+          thead { display: table-header-group; }
+          tr { break-inside: avoid; }
+
+          /* Alert banners — saturated so they print */
+          .alert-critical { background: #fee2e2 !important; border: 0.6pt solid #f87171 !important; color: #991b1b !important; break-inside: avoid; }
+          .alert-warning  { background: #fef3c7 !important; border: 0.6pt solid #f59e0b !important; color: #78350f !important; break-inside: avoid; }
+          .alert-good     { background: #d1fae5 !important; border: 0.6pt solid #34d399 !important; color: #064e3b !important; break-inside: avoid; }
+          .alert-info     { background: #dbeafe !important; border: 0.6pt solid #60a5fa !important; color: #1e3a8a !important; break-inside: avoid; }
+          .alert-critical *, .alert-warning *, .alert-good *, .alert-info * { color: inherit !important; }
+
+          /* Inline alert divs in Key Alerts section */
+          .print\\:bg-red-50   { background: #fee2e2 !important; }
+          .print\\:bg-amber-50 { background: #fef3c7 !important; }
+          .print\\:text-red-800   { color: #991b1b !important; }
+          .print\\:text-amber-800 { color: #78350f !important; }
+
+          /* Progress bars */
+          .bg-emerald-500, .bg-emerald-600 { background: #059669 !important; }
+          .bg-amber-400, .bg-amber-500     { background: #d97706 !important; }
+          .bg-orange-500, .bg-orange-600   { background: #ea580c !important; }
+          .bg-red-500, .bg-red-600         { background: #dc2626 !important; }
+          .bg-red-800, .bg-red-900         { background: #991b1b !important; }
+          .bg-hexa-purple\\/70 { background: #7c3aed !important; }
+          .bg-hexa-pink  { background: #E8177A !important; }
+          .bg-hexa-purple { background: #8B18E8 !important; }
+
+          /* Text */
+          .text-white, .print\\:text-gray-900 { color: #111827 !important; }
+          .text-gray-400, .text-gray-500, .print\\:text-gray-600 { color: #4b5563 !important; }
+          .text-emerald-400, .print\\:text-emerald-700 { color: #047857 !important; }
+          .text-amber-400, .print\\:text-amber-700     { color: #b45309 !important; }
+          .text-red-400, .print\\:text-red-700         { color: #b91c1c !important; }
+          .text-emerald-500 { color: #047857 !important; }
+          .text-red-500     { color: #b91c1c !important; }
+        }
+      `}</style>
       <NavBar />
 
       {/* ── Print Header ─────────────────────────────────────────────────── */}
@@ -370,9 +421,9 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
             trend={pl ? (pl.group.ebitdaMyr >= 0 ? 'up' : 'down') : undefined}
           />
           <KpiCard
-            label="Net Profit"
+            label="Group PAT"
             value={pl ? fmtM(pl.group.netProfitMyr) : '—'}
-            sub={pl ? `${pl.group.netMarginPct.toFixed(1)}% margin` : undefined}
+            sub={pl ? `${pl.group.netMarginPct.toFixed(1)}% net margin` : undefined}
             trend={pl ? (pl.group.netProfitMyr >= 0 ? 'up' : 'down') : undefined}
           />
           <KpiCard
@@ -411,7 +462,7 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
                     { label: 'Operating Expenses',  cur: -pl.group.totalOpexMyr,   prev: pl.comparison ? -pl.comparison.group.totalOpexMyr   : undefined, pct: pl.group.totalRevenueMyr > 0 ? -(pl.group.totalOpexMyr   / pl.group.totalRevenueMyr) * 100 : 0, bold: false },
                     { label: 'EBITDA',              cur: pl.group.ebitdaMyr,       prev: pl.comparison?.group.ebitdaMyr,       pct: pl.group.ebitdaMarginPct,      bold: true  },
                     { label: 'EBIT',                cur: pl.group.ebitMyr,         prev: pl.comparison?.group.ebitMyr,         pct: pl.group.ebitMarginPct,        bold: false },
-                    { label: 'Net Profit',          cur: pl.group.netProfitMyr,    prev: pl.comparison?.group.netProfitMyr,    pct: pl.group.netMarginPct,      bold: true  },
+                    { label: 'Net Profit / PAT',    cur: pl.group.netProfitMyr,    prev: pl.comparison?.group.netProfitMyr,    pct: pl.group.netMarginPct,      bold: true  },
                   ].map(row => {
                     const chg = (row.prev !== undefined && row.prev !== 0)
                       ? variance(row.cur, row.prev) : null
@@ -461,7 +512,7 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
                   { label: 'Revenue',           cur: pl.group.totalRevenueMyr,  prev: pl.comparison.group.totalRevenueMyr  },
                   { label: 'Gross Profit',      cur: pl.group.grossProfitMyr,   prev: pl.comparison.group.grossProfitMyr   },
                   { label: 'EBITDA',            cur: pl.group.ebitdaMyr,        prev: pl.comparison.group.ebitdaMyr        },
-                  { label: 'Net Profit',        cur: pl.group.netProfitMyr,     prev: pl.comparison.group.netProfitMyr     },
+                  { label: 'Net Profit / PAT',  cur: pl.group.netProfitMyr,     prev: pl.comparison.group.netProfitMyr     },
                   { label: 'Operating Expenses',cur: pl.group.totalOpexMyr,     prev: pl.comparison.group.totalOpexMyr,    inverse: true },
                   { label: 'Cost of Sales',     cur: pl.group.totalCogsMyr,     prev: pl.comparison.group.totalCogsMyr,    inverse: true },
                   { label: 'Gross Margin',      cur: pl.group.grossMarginPct,   prev: pl.comparison.group.grossMarginPct,  isPct: true },

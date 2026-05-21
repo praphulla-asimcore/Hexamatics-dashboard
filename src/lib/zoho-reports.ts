@@ -50,8 +50,8 @@ export function getFinancialDateRange(period: FinancialPeriod): { from: string; 
     const em = h === 1 ? 6 : 12
     return { from: `${year}-${pad(sm)}-01`, to: `${year}-${pad(em)}-${lastDay(year, em)}` }
   }
-  // year
-  const endM = year < now.getFullYear() ? 12 : now.getMonth() + 1
+  // year — stop at last complete month (matches AR ytd; avoids partial current-month data)
+  const endM = year < now.getFullYear() ? 12 : Math.max(now.getMonth(), 1)
   return { from: `${year}-01-01`, to: `${year}-${pad(endM)}-${lastDay(year, endM)}` }
 }
 
