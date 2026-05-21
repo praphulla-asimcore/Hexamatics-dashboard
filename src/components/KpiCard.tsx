@@ -27,7 +27,7 @@ export function KpiCard({ label, value, sub, highlight, trend, badge }: Props) {
           {/* Left strip — dark mode */}
           <div className="kpi-left-strip absolute left-0 top-0 bottom-0 w-1 rounded-l-xl bg-hexa-gradient" />
           <p className="text-xs font-medium text-gray-400 mb-1.5 mt-1">{label}</p>
-          <p className="text-2xl font-bold tabular-nums text-transparent bg-clip-text bg-hexa-gradient-r leading-tight">
+          <p className="text-2xl font-bold tabular-nums text-transparent bg-clip-text bg-hexa-gradient-r leading-tight print:text-gray-900">
             {value}
           </p>
           {sub && <p className={`text-xs mt-1.5 ${trendColor}`}>{sub}</p>}

@@ -81,9 +81,11 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
       const params = new URLSearchParams({
         mode: p.mode,
         year: String(p.year),
-        ...(p.month ? { month: String(p.month) } : {}),
-        ...(p.quarter ? { quarter: String(p.quarter) } : {}),
-        ...(p.half ? { half: String(p.half) } : {}),
+        ...(p.month      ? { month:      String(p.month)    } : {}),
+        ...(p.quarter    ? { quarter:    String(p.quarter)  } : {}),
+        ...(p.half       ? { half:       String(p.half)     } : {}),
+        ...(p.customFrom ? { customFrom: p.customFrom       } : {}),
+        ...(p.customTo   ? { customTo:   p.customTo         } : {}),
         comparison: p.comparison ?? 'previous',
       })
       const res = await fetch(`/api/zoho/dashboard?${params}`, {

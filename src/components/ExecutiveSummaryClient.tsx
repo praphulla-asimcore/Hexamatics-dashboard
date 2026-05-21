@@ -52,17 +52,38 @@ function buildArParams(p: PeriodDef): URLSearchParams {
 }
 
 function buildFinParams(p: PeriodDef): URLSearchParams {
-  const mode = (p.mode === 'ytd' || p.mode === 'rolling12') ? 'year' : p.mode
+  let finMode = p.mode as string
+  let customFrom = p.customFrom
+  let customTo   = p.customTo
+
+  if (p.mode === 'ytd') {
+    const now = new Date()
+    const endMonth = p.year < now.getFullYear() ? 12 : Math.max(now.getMonth(), 1)
+    const lastDay  = new Date(p.year, endMonth, 0).getDate()
+    customFrom = `${p.year}-01-01`
+    customTo   = `${p.year}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    finMode = 'custom'
+  } else if (p.mode === 'rolling12') {
+    const now      = new Date()
+    const endMonth = Math.max(now.getMonth(), 1)
+    const endYear  = now.getFullYear()
+    const startD   = new Date(endYear, endMonth - 12, 1)
+    const lastDay  = new Date(endYear, endMonth, 0).getDate()
+    customFrom = `${startD.getFullYear()}-${String(startD.getMonth() + 1).padStart(2, '0')}-01`
+    customTo   = `${endYear}-${String(endMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    finMode = 'custom'
+  }
+
   const params = new URLSearchParams({
-    mode,
+    mode: finMode,
     year: String(p.year),
     comparison: p.comparison ?? 'previous',
   })
-  if (p.month   && mode === 'month')   params.set('month',   String(p.month))
-  if (p.quarter && mode === 'quarter') params.set('quarter', String(p.quarter))
-  if (p.half    && mode === 'half')    params.set('half',    String(p.half))
-  if (p.customFrom) params.set('customFrom', p.customFrom)
-  if (p.customTo)   params.set('customTo',   p.customTo)
+  if (p.month   && finMode === 'month')   params.set('month',   String(p.month))
+  if (p.quarter && finMode === 'quarter') params.set('quarter', String(p.quarter))
+  if (p.half    && finMode === 'half')    params.set('half',    String(p.half))
+  if (customFrom) params.set('customFrom', customFrom)
+  if (customTo)   params.set('customTo',   customTo)
   return params
 }
 
@@ -77,7 +98,7 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden mb-6 print:mb-4 print:break-inside-avoid print:rounded-none print:border-gray-300">
+    <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden mb-6 print:mb-4 print:rounded-none print:border-gray-300">
       <div className="px-6 py-3.5 border-b border-gray-800 bg-gray-800/40 print:border-gray-300 print:bg-gray-100 print:px-4 print:py-2">
         <h2 className="text-sm font-semibold text-white uppercase tracking-wider print:text-gray-900 print:text-xs">{title}</h2>
       </div>
@@ -130,10 +151,11 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
     const cfStmts: CashFlowStatement[] = []
 
     const finLabel = getFinancialPeriodLabel({
-      mode: (p.mode === 'ytd' || p.mode === 'rolling12' ? 'year' : p.mode) as any,
+      mode: (finP.get('mode') ?? 'year') as any,
       year: p.year, month: p.month, quarter: p.quarter, half: p.half,
       comparison: (p.comparison ?? 'previous') as any,
-      customFrom: p.customFrom, customTo: p.customTo,
+      customFrom: finP.get('customFrom') ?? undefined,
+      customTo:   finP.get('customTo')   ?? undefined,
     })
 
     for (let i = 0; i < ORGS.length; i++) {
@@ -329,7 +351,7 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
         </div>
 
         {/* ── 1. Headline KPIs ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6 print:grid-cols-6 print:gap-2 print:mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6 print:grid-cols-3 print:gap-2 print:mb-4">
           <KpiCard
             label="Group Revenue"
             value={fmtM(revenueSource)}
