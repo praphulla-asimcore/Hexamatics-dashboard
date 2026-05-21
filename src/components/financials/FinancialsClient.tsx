@@ -328,16 +328,103 @@ function KpiCard({ label, value, change, suffix = '' }: {
   label: string; value: string; change?: number; suffix?: string
 }) {
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <div className="kpi-card kpi-card-enter rounded-xl p-4 relative overflow-hidden">
       <p className="text-xs text-gray-500 mb-1">{label}</p>
       <p className="text-xl font-bold text-white">{value}{suffix}</p>
       {change !== undefined && (
-        <p className={`text-xs mt-1 ${varColor(change)}`}>
+        <p className={`text-xs mt-1 font-medium ${varColor(change)}`}>
           {varianceLabel(change)} vs prior
         </p>
       )}
     </div>
   )
+}
+
+// ─── Chart theme ─────────────────────────────────────────────────────────────
+
+const CHART_OPTIONS: any = {
+  responsive: true,
+  animation: { duration: 650, easing: 'easeOutQuart' },
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: {
+      position: 'top',
+      labels: {
+        color: '#374151', font: { size: 11 },
+        boxWidth: 10, boxHeight: 10, padding: 14,
+      },
+    },
+    tooltip: {
+      backgroundColor: 'rgba(255,255,255,0.97)',
+      borderColor: 'rgba(139,24,232,0.18)',
+      borderWidth: 1,
+      titleColor: '#0f172a',
+      bodyColor: '#374151',
+      padding: 10,
+      cornerRadius: 10,
+      callbacks: {
+        label: (ctx: any) => `  ${ctx.dataset.label}: ${fmtCurrency(ctx.parsed.y)}`,
+      },
+    },
+  },
+  scales: {
+    x: {
+      ticks: { color: '#64748b', font: { size: 11 } },
+      grid: { color: 'rgba(139,24,232,0.06)' },
+      border: { display: false },
+    },
+    y: {
+      ticks: {
+        color: '#64748b', font: { size: 11 },
+        callback: (v: any) => {
+          const abs = Math.abs(v)
+          if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+          if (abs >= 1_000) return `${(v / 1_000).toFixed(0)}K`
+          return v
+        },
+      },
+      grid: { color: 'rgba(139,24,232,0.06)' },
+      border: { display: false },
+    },
+  },
+}
+
+const DONUT_OPTIONS: any = {
+  responsive: true,
+  animation: { duration: 650, easing: 'easeOutQuart' },
+  cutout: '60%',
+  plugins: {
+    legend: {
+      position: 'bottom',
+      labels: { color: '#374151', font: { size: 10 }, boxWidth: 10, boxHeight: 10, padding: 8 },
+    },
+    tooltip: {
+      backgroundColor: 'rgba(255,255,255,0.97)',
+      borderColor: 'rgba(139,24,232,0.18)',
+      borderWidth: 1,
+      titleColor: '#0f172a',
+      bodyColor: '#374151',
+      padding: 10,
+      cornerRadius: 10,
+      callbacks: {
+        label: (ctx: any) => `  ${ctx.label}: ${fmtCurrency(ctx.parsed)}`,
+      },
+    },
+  },
+}
+
+// ─── Helper: flatten FSLineItem tree to leaf items ────────────────────────────
+
+function getLeafItems(items: FSLineItem[]): FSLineItem[] {
+  const result: FSLineItem[] = []
+  for (const item of items) {
+    if (item.subItems && item.subItems.length > 0) {
+      result.push(...getLeafItems(item.subItems))
+    } else if (item.amount !== 0) {
+      result.push(item)
+    }
+  }
+  return result.length > 0 ? result : items.filter((i) => i.amount !== 0)
 }
 
 // ─── Insights Panel ───────────────────────────────────────────────────────────
@@ -636,46 +723,87 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
   const { group: g, entities, comparison } = data
   const cg = comparison?.group
 
-  // Revenue mix donut chart
-  const entityRevenues = entities.filter((e) => e.data.totalRevenue > 0)
-  const donutData = {
-    labels: entityRevenues.map((e) => e.orgShort),
-    datasets: [{
-      data: entityRevenues.map((e) => e.data.totalRevenue * e.fxRate),
-      backgroundColor: entityRevenues.map((_, i) => ENTITY_COLORS[i % ENTITY_COLORS.length]),
-      borderWidth: 1,
-      borderColor: '#111827',
-    }],
-  }
+  // Entity charts
+  const activeEntities = entities.filter((e) => !e.error && e.data.totalRevenue > 0)
 
-  // Entity profitability bar
-  const profitEntities = entities.filter((e) => e.data.totalRevenue > 0)
   const barData = {
-    labels: profitEntities.map((e) => e.orgShort),
+    labels: activeEntities.map((e) => e.orgShort),
     datasets: [
       {
         label: 'Revenue (MYR)',
-        data: profitEntities.map((e) => e.data.totalRevenue * e.fxRate),
-        backgroundColor: profitEntities.map((_, i) => ENTITY_COLORS[i % ENTITY_COLORS.length] + 'AA'),
+        data: activeEntities.map((e) => e.data.totalRevenue * e.fxRate),
+        backgroundColor: activeEntities.map((_, i) => ENTITY_COLORS[i % ENTITY_COLORS.length] + 'AA'),
+        borderColor: activeEntities.map((_, i) => ENTITY_COLORS[i % ENTITY_COLORS.length]),
+        borderWidth: 1.5,
+        borderRadius: 6,
+      },
+      {
+        label: 'Gross Profit (MYR)',
+        data: activeEntities.map((e) => e.data.grossProfit * e.fxRate),
+        backgroundColor: activeEntities.map(() => '#10B98155'),
+        borderColor: activeEntities.map(() => '#10B981'),
+        borderWidth: 1.5,
+        borderRadius: 6,
       },
       {
         label: 'Net Profit (MYR)',
-        data: profitEntities.map((e) => e.data.netProfit * e.fxRate),
-        backgroundColor: profitEntities.map((e) =>
-          e.data.netProfit >= 0 ? '#10B981AA' : '#EF4444AA'
+        data: activeEntities.map((e) => e.data.netProfit * e.fxRate),
+        backgroundColor: activeEntities.map((e) =>
+          e.data.netProfit >= 0 ? '#6366f166' : '#EF444466'
         ),
+        borderColor: activeEntities.map((e) =>
+          e.data.netProfit >= 0 ? '#6366f1' : '#EF4444'
+        ),
+        borderWidth: 1.5,
+        borderRadius: 6,
       },
     ],
   }
 
-  const chartOptions: any = {
-    responsive: true,
-    plugins: { legend: { labels: { color: '#374151', font: { size: 11 } } }, tooltip: { mode: 'index' } },
-    scales: {
-      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(139,24,232,0.08)' } },
-      y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(139,24,232,0.08)' } },
-    },
+  const donutData = {
+    labels: activeEntities.map((e) => e.orgShort),
+    datasets: [{
+      data: activeEntities.map((e) => e.data.totalRevenue * e.fxRate),
+      backgroundColor: activeEntities.map((_, i) => ENTITY_COLORS[i % ENTITY_COLORS.length] + 'BB'),
+      borderColor: activeEntities.map((_, i) => ENTITY_COLORS[i % ENTITY_COLORS.length]),
+      borderWidth: 2,
+      hoverOffset: 10,
+    }],
   }
+
+  // P&L cascade data
+  const cascade = [
+    { label: 'Revenue',      value: g.totalRevenueMyr, pct: 100,                    color: '#8B18E8' },
+    { label: 'Gross Profit', value: g.grossProfitMyr,  pct: g.grossMarginPct,       color: '#6366f1' },
+    { label: 'EBITDA',       value: g.ebitdaMyr,       pct: g.ebitdaMarginPct,      color: '#06b6d4' },
+    { label: 'EBIT',         value: g.ebitMyr,         pct: g.ebitMarginPct,        color: '#0ea5e9' },
+    { label: 'Net Profit',   value: g.netProfitMyr,    pct: g.netMarginPct,
+      color: g.netProfitMyr >= 0 ? '#059669' : '#dc2626' },
+  ]
+  const maxCascadeVal = Math.max(...cascade.map((c) => Math.abs(c.value)), 1)
+
+  // Revenue & COGS segment aggregation
+  const revMap: Record<string, number> = {}
+  const cogsMap: Record<string, number> = {}
+  entities.filter((e) => !e.error && e.data.revenue).forEach((e) => {
+    const fx = e.fxRate
+    getLeafItems(e.data.revenue ?? []).forEach((item) => {
+      const k = item.account || 'Other Revenue'
+      revMap[k] = (revMap[k] ?? 0) + item.amount * fx
+    })
+    getLeafItems(e.data.cogs ?? []).forEach((item) => {
+      const k = item.account || 'Other COGS'
+      cogsMap[k] = (cogsMap[k] ?? 0) + Math.abs(item.amount) * fx
+    })
+  })
+  const revItems = Object.entries(revMap)
+    .map(([name, myr]) => ({ name, myr }))
+    .filter((x) => x.myr > 0)
+    .sort((a, b) => b.myr - a.myr)
+  const cogsItems = Object.entries(cogsMap)
+    .map(([name, myr]) => ({ name, myr }))
+    .filter((x) => x.myr > 0)
+    .sort((a, b) => b.myr - a.myr)
 
   return (
     <div className="space-y-6">
@@ -691,114 +819,223 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
           change={cg ? variance(g.netProfitMyr, cg.netProfitMyr) : undefined} />
       </div>
 
-      {/* Charts */}
+      {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <h3 className="text-sm font-medium text-gray-300 mb-3">Revenue & Profit by Entity (MYR)</h3>
-          <Bar data={barData} options={chartOptions} height={220} />
+        <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-800">Revenue, GP & Net Profit by Entity</h3>
+            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">MYR</span>
+          </div>
+          <Bar data={barData} options={CHART_OPTIONS} height={200} />
         </div>
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-          <h3 className="text-sm font-medium text-gray-300 mb-3">Revenue Mix</h3>
-          <Doughnut data={donutData} options={{
-            responsive: true,
-            plugins: { legend: { position: 'bottom', labels: { color: '#374151', font: { size: 10 }, boxWidth: 12 } } },
-          }} />
+        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">Revenue Mix</h3>
+          <Doughnut data={donutData} options={DONUT_OPTIONS} />
+          <p className="text-center text-xs text-gray-500 mt-3 font-medium">
+            Total: {fmtCurrency(g.totalRevenueMyr)}
+          </p>
         </div>
       </div>
 
-      {/* Group P&L Waterfall summary */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 overflow-x-auto">
-        <h3 className="text-sm font-medium text-gray-300 mb-4">Consolidated P&L Summary (MYR)</h3>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-xs text-gray-500 border-b border-gray-800">
-              <th className="text-left pb-2">Metric</th>
-              <th className="text-right pb-2">Amount (MYR)</th>
-              <th className="text-right pb-2">Margin</th>
-              <th className="text-right pb-2">Prior (MYR)</th>
-              <th className="text-right pb-2">Change</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800/50">
-            {[
-              { label: 'Total Revenue', value: g.totalRevenueMyr, margin: 100, comp: cg?.totalRevenueMyr },
-              { label: 'Gross Profit', value: g.grossProfitMyr, margin: g.grossMarginPct, comp: cg?.grossProfitMyr },
-              { label: 'EBITDA', value: g.ebitdaMyr, margin: g.ebitdaMarginPct, comp: cg?.ebitdaMyr },
-              { label: 'EBIT', value: g.ebitMyr, margin: g.ebitMarginPct, comp: cg?.ebitMyr },
-              { label: 'Net Profit', value: g.netProfitMyr, margin: g.netMarginPct, comp: cg?.netProfitMyr },
-            ].map((row) => {
-              const chg = row.comp ? variance(row.value, row.comp) : undefined
+      {/* P&L Cascade */}
+      <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+        <div className="section-accent-bar" />
+        <div className="p-5">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-sm font-semibold text-gray-800">P&L Cascade — Group Consolidated (MYR)</h3>
+            {cg && <span className="text-[10px] text-gray-400 font-medium">vs prior period shown in summary table below</span>}
+          </div>
+          <div className="space-y-3">
+            {cascade.map((item) => {
+              const barPct = (Math.abs(item.value) / maxCascadeVal) * 100
+              const isNeg = item.value < 0
+              const textOnBar = barPct > 35
               return (
-                <tr key={row.label} className="hover:bg-gray-800/30">
-                  <td className="py-2 font-medium text-gray-200">{row.label}</td>
-                  <td className={`py-2 text-right tabular-nums ${row.value < 0 ? 'text-red-400' : 'text-white'}`}>
-                    {fmtCurrency(row.value)}
-                  </td>
-                  <td className="py-2 text-right text-gray-400 text-xs">{row.margin.toFixed(1)}%</td>
-                  <td className="py-2 text-right text-gray-600 tabular-nums">
-                    {row.comp ? fmtCurrency(row.comp) : '—'}
-                  </td>
-                  <td className={`py-2 text-right text-xs tabular-nums ${chg !== undefined ? varColor(chg) : 'text-gray-600'}`}>
-                    {chg !== undefined ? varianceLabel(chg) : '—'}
-                  </td>
-                </tr>
+                <div key={item.label} className="flex items-center gap-4">
+                  <div className="w-24 text-xs font-semibold text-gray-600 text-right shrink-0">{item.label}</div>
+                  <div className="flex-1 relative h-9 rounded-lg overflow-hidden bg-black/[0.04]">
+                    <div
+                      className="h-full rounded-lg transition-all duration-700 ease-out"
+                      style={{
+                        width: `${Math.max(barPct, 1)}%`,
+                        background: isNeg
+                          ? 'linear-gradient(90deg, #ef4444, #f87171)'
+                          : `linear-gradient(90deg, ${item.color}DD, ${item.color}99)`,
+                      }}
+                    />
+                    <span
+                      className="absolute inset-0 flex items-center px-3 text-xs font-bold tabular-nums"
+                      style={{ color: textOnBar ? '#fff' : (isNeg ? '#dc2626' : item.color) }}
+                    >
+                      {fmtCurrency(item.value)}
+                    </span>
+                  </div>
+                  <div
+                    className="w-14 text-right text-xs font-bold shrink-0 tabular-nums"
+                    style={{ color: isNeg ? '#dc2626' : item.color }}
+                  >
+                    {item.pct.toFixed(1)}%
+                  </div>
+                  {cg && (() => {
+                    const compVal = item.label === 'Revenue' ? cg.totalRevenueMyr
+                      : item.label === 'Gross Profit' ? cg.grossProfitMyr
+                      : item.label === 'EBITDA' ? cg.ebitdaMyr
+                      : item.label === 'EBIT' ? cg.ebitMyr
+                      : cg.netProfitMyr
+                    const chg = compVal !== 0 ? variance(item.value, compVal) : null
+                    return (
+                      <div className={`w-16 text-right text-[11px] font-semibold shrink-0 ${chg !== null ? varColor(chg) : 'text-gray-400'}`}>
+                        {chg !== null ? varianceLabel(chg) : '—'}
+                      </div>
+                    )
+                  })()}
+                </div>
               )
             })}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
+
+      {/* Revenue & COGS breakdown */}
+      {revItems.length > 0 && (
+        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+          <div className="section-accent-bar" />
+          <div className="p-5">
+            <h3 className="text-sm font-semibold text-gray-800 mb-5">Revenue, COGS & Gross Profit by Account</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Revenue */}
+              <div>
+                <p className="text-[10px] font-bold text-hexa-purple uppercase tracking-widest mb-3">Revenue Breakdown</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-500 border-b border-purple-100">
+                      <th className="text-left pb-2 font-medium">Account</th>
+                      <th className="text-right pb-2 font-medium">MYR</th>
+                      <th className="text-right pb-2 font-medium">% Rev</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-purple-50">
+                    {revItems.map((item) => {
+                      const pct = g.totalRevenueMyr > 0 ? (item.myr / g.totalRevenueMyr) * 100 : 0
+                      return (
+                        <tr key={item.name} className="hover:bg-purple-50/50 transition">
+                          <td className="py-2 text-gray-700 font-medium">{item.name}</td>
+                          <td className="py-2 text-right tabular-nums text-gray-900 font-semibold">{fmtCurrency(item.myr)}</td>
+                          <td className="py-2 text-right tabular-nums text-gray-500 text-xs">{pct.toFixed(1)}%</td>
+                        </tr>
+                      )
+                    })}
+                    <tr className="font-bold border-t-2 border-hexa-purple/30 bg-purple-50/40">
+                      <td className="py-2.5 text-hexa-purple pl-1">Total Revenue</td>
+                      <td className="py-2.5 text-right tabular-nums text-hexa-purple">{fmtCurrency(g.totalRevenueMyr)}</td>
+                      <td className="py-2.5 text-right text-gray-400 text-xs">100%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* COGS + GP */}
+              <div>
+                <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-3">COGS Breakdown</p>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-xs text-gray-500 border-b border-red-100/80">
+                      <th className="text-left pb-2 font-medium">Account</th>
+                      <th className="text-right pb-2 font-medium">MYR</th>
+                      <th className="text-right pb-2 font-medium">% Rev</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-red-50/80">
+                    {cogsItems.length > 0 ? cogsItems.map((item) => {
+                      const pct = g.totalRevenueMyr > 0 ? (item.myr / g.totalRevenueMyr) * 100 : 0
+                      return (
+                        <tr key={item.name} className="hover:bg-red-50/40 transition">
+                          <td className="py-2 text-gray-700 font-medium">{item.name}</td>
+                          <td className="py-2 text-right tabular-nums text-red-600 font-semibold">({fmtCurrency(item.myr)})</td>
+                          <td className="py-2 text-right tabular-nums text-gray-500 text-xs">{pct.toFixed(1)}%</td>
+                        </tr>
+                      )
+                    }) : (
+                      <tr><td colSpan={3} className="py-3 text-xs text-gray-400 italic">No COGS data available</td></tr>
+                    )}
+                    <tr className="font-bold border-t-2 border-red-300/50">
+                      <td className="py-2 text-gray-700">Total COGS</td>
+                      <td className="py-2 text-right tabular-nums text-red-500">({fmtCurrency(g.totalCogsMyr)})</td>
+                      <td className="py-2 text-right text-gray-400 text-xs">
+                        {g.totalRevenueMyr > 0 ? `${(g.totalCogsMyr / g.totalRevenueMyr * 100).toFixed(1)}%` : '—'}
+                      </td>
+                    </tr>
+                    <tr className="font-bold border-t-2 border-emerald-300/50 bg-emerald-50/40">
+                      <td className="py-2.5 text-emerald-700 pl-1">Gross Profit</td>
+                      <td className="py-2.5 text-right tabular-nums text-emerald-700">{fmtCurrency(g.grossProfitMyr)}</td>
+                      <td className="py-2.5 text-right text-emerald-600 text-xs font-bold">{g.grossMarginPct.toFixed(1)}%</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Entity breakdown table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 overflow-x-auto">
-        <h3 className="text-sm font-medium text-gray-300 mb-4">Entity Breakdown</h3>
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-gray-500 border-b border-gray-800">
-              <th className="text-left pb-2">Entity</th>
-              <th className="text-right pb-2">Revenue (Local)</th>
-              <th className="text-right pb-2">Revenue (MYR)</th>
-              <th className="text-right pb-2">Gross Margin</th>
-              <th className="text-right pb-2">EBITDA Margin</th>
-              <th className="text-right pb-2">Net Margin</th>
-              <th className="text-right pb-2">Net Profit (MYR)</th>
-              <th className="text-right pb-2">Revenue Share</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-800/50">
-            {entities.map((e, i) => {
-              const revMyr = e.data.totalRevenue * e.fxRate
-              const share = g.totalRevenueMyr > 0 ? (revMyr / g.totalRevenueMyr) * 100 : 0
-              return (
-                <tr key={e.orgId} className="hover:bg-gray-800/30">
-                  <td className="py-2 font-medium text-gray-200 flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: ENTITY_COLORS[i % ENTITY_COLORS.length] }} />
-                    {e.orgShort}
-                  </td>
-                  <td className="py-2 text-right text-gray-400">
-                    {e.error ? '—' : fmtCurrency(e.data.totalRevenue, e.currency)}
-                  </td>
-                  <td className="py-2 text-right text-gray-200">
-                    {e.error ? <span className="text-red-400 text-xs">Error</span> : fmtCurrency(revMyr)}
-                  </td>
-                  <td className={`py-2 text-right ${e.data.grossMargin < 20 ? 'text-red-400' : 'text-gray-300'}`}>
-                    {e.error ? '—' : fmtPct(e.data.grossMargin)}
-                  </td>
-                  <td className={`py-2 text-right ${e.data.ebitdaMargin < 0 ? 'text-red-400' : 'text-gray-300'}`}>
-                    {e.error ? '—' : fmtPct(e.data.ebitdaMargin)}
-                  </td>
-                  <td className={`py-2 text-right ${e.data.netMargin < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
-                    {e.error ? '—' : fmtPct(e.data.netMargin)}
-                  </td>
-                  <td className={`py-2 text-right ${e.data.netProfit * e.fxRate < 0 ? 'text-red-400' : 'text-white'}`}>
-                    {e.error ? '—' : fmtCurrency(e.data.netProfit * e.fxRate)}
-                  </td>
-                  <td className="py-2 text-right text-gray-500">{fmtPct(share)}</td>
+      <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+        <div className="section-accent-bar" />
+        <div className="p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">Entity Performance Breakdown</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-[10px] text-gray-500 border-b border-purple-100 uppercase tracking-wider">
+                  <th className="text-left pb-2.5 font-medium">Entity</th>
+                  <th className="text-right pb-2.5 font-medium">Revenue (Local)</th>
+                  <th className="text-right pb-2.5 font-medium">Revenue (MYR)</th>
+                  <th className="text-right pb-2.5 font-medium">Gross Margin</th>
+                  <th className="text-right pb-2.5 font-medium">EBITDA Margin</th>
+                  <th className="text-right pb-2.5 font-medium">Net Margin</th>
+                  <th className="text-right pb-2.5 font-medium">Net Profit (MYR)</th>
+                  <th className="text-right pb-2.5 font-medium">Rev Share</th>
                 </tr>
-              )
-            })}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-purple-50">
+                {entities.map((e, i) => {
+                  const revMyr = e.data.totalRevenue * e.fxRate
+                  const share = g.totalRevenueMyr > 0 ? (revMyr / g.totalRevenueMyr) * 100 : 0
+                  return (
+                    <tr key={e.orgId} className="hover:bg-purple-50/40 transition">
+                      <td className="py-2.5 font-semibold text-gray-800">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white"
+                            style={{ backgroundColor: ENTITY_COLORS[i % ENTITY_COLORS.length] }} />
+                          {e.orgShort}
+                        </div>
+                      </td>
+                      <td className="py-2.5 text-right text-gray-500">
+                        {e.error ? '—' : fmtCurrency(e.data.totalRevenue, e.currency)}
+                      </td>
+                      <td className="py-2.5 text-right font-semibold text-gray-800">
+                        {e.error ? <span className="text-red-400">Error</span> : fmtCurrency(revMyr)}
+                      </td>
+                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.grossMargin < 20 ? 'text-red-400' : 'text-gray-700'}`}>
+                        {e.error ? '—' : fmtPct(e.data.grossMargin)}
+                      </td>
+                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.ebitdaMargin < 0 ? 'text-red-400' : 'text-gray-700'}`}>
+                        {e.error ? '—' : fmtPct(e.data.ebitdaMargin)}
+                      </td>
+                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.netMargin < 0 ? 'text-red-400' : 'text-emerald-600'}`}>
+                        {e.error ? '—' : fmtPct(e.data.netMargin)}
+                      </td>
+                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.netProfit * e.fxRate < 0 ? 'text-red-400' : 'text-gray-800'}`}>
+                        {e.error ? '—' : fmtCurrency(e.data.netProfit * e.fxRate)}
+                      </td>
+                      <td className="py-2.5 text-right text-gray-500">{fmtPct(share)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* Insights */}
@@ -822,49 +1059,50 @@ function ConsolidatedBSView({ data, insights }: { data: ConsolidatedBS; insights
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col gap-2">
-          <h3 className="text-sm font-medium text-gray-300">Capital Structure</h3>
+        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5 flex flex-col gap-2">
+          <h3 className="text-sm font-semibold text-gray-800">Capital Structure</h3>
           <Doughnut
             data={{
-              labels: ['Equity', 'Liabilities'],
+              labels: ['Equity', 'Total Liabilities'],
               datasets: [{
                 data: [Math.max(0, g.totalEquityMyr), g.totalLiabilitiesMyr],
-                backgroundColor: ['#10B981AA','#EF4444AA'],
-                borderColor: '#111827',
-                borderWidth: 1,
+                backgroundColor: ['#10B98188','#EF444488'],
+                borderColor: ['#10B981','#EF4444'],
+                borderWidth: 2,
+                hoverOffset: 8,
               }],
             }}
-            options={{ responsive: true, plugins: { legend: { labels: { color: '#374151' } } } }}
+            options={DONUT_OPTIONS}
           />
-          <div className="text-xs text-gray-500 text-center">D/E Ratio: {g.debtToEquity.toFixed(2)}x</div>
+          <div className="text-xs text-gray-500 text-center font-medium">D/E Ratio: {g.debtToEquity.toFixed(2)}x</div>
         </div>
 
-        <div className="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-xl p-4 overflow-x-auto">
-          <h3 className="text-sm font-medium text-gray-300 mb-4">Entity Balance Sheet Summary (MYR)</h3>
+        <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5 overflow-x-auto">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">Entity Balance Sheet Summary (MYR)</h3>
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-gray-500 border-b border-gray-800">
-                <th className="text-left pb-2">Entity</th>
-                <th className="text-right pb-2">Total Assets</th>
-                <th className="text-right pb-2">Total Liab.</th>
-                <th className="text-right pb-2">Equity</th>
-                <th className="text-right pb-2">Current Ratio</th>
-                <th className="text-right pb-2">D/E</th>
+              <tr className="text-[10px] text-gray-500 border-b border-purple-100 uppercase tracking-wider">
+                <th className="text-left pb-2.5 font-medium">Entity</th>
+                <th className="text-right pb-2.5 font-medium">Total Assets</th>
+                <th className="text-right pb-2.5 font-medium">Total Liab.</th>
+                <th className="text-right pb-2.5 font-medium">Equity</th>
+                <th className="text-right pb-2.5 font-medium">Current Ratio</th>
+                <th className="text-right pb-2.5 font-medium">D/E</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800/50">
+            <tbody className="divide-y divide-purple-50">
               {entities.map((e) => (
-                <tr key={e.orgId} className="hover:bg-gray-800/30">
-                  <td className="py-2 font-medium text-gray-200">{e.orgShort}</td>
-                  <td className="py-2 text-right">{e.error ? '—' : fmtCurrency(e.data.totalAssets * e.fxRate)}</td>
-                  <td className="py-2 text-right">{e.error ? '—' : fmtCurrency(e.data.totalLiabilities * e.fxRate)}</td>
-                  <td className={`py-2 text-right ${e.data.totalEquity < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+                <tr key={e.orgId} className="hover:bg-purple-50/40 transition">
+                  <td className="py-2.5 font-semibold text-gray-800">{e.orgShort}</td>
+                  <td className="py-2.5 text-right text-gray-700">{e.error ? '—' : fmtCurrency(e.data.totalAssets * e.fxRate)}</td>
+                  <td className="py-2.5 text-right text-gray-700">{e.error ? '—' : fmtCurrency(e.data.totalLiabilities * e.fxRate)}</td>
+                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.totalEquity < 0 ? 'text-red-400' : 'text-emerald-600'}`}>
                     {e.error ? '—' : fmtCurrency(e.data.totalEquity * e.fxRate)}
                   </td>
-                  <td className={`py-2 text-right ${e.data.currentRatio < 1 ? 'text-red-400' : 'text-gray-300'}`}>
+                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.currentRatio < 1 ? 'text-red-400' : 'text-gray-700'}`}>
                     {e.error ? '—' : `${e.data.currentRatio.toFixed(2)}x`}
                   </td>
-                  <td className={`py-2 text-right ${e.data.debtToEquity > 2 ? 'text-amber-400' : 'text-gray-300'}`}>
+                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.debtToEquity > 2 ? 'text-amber-500' : 'text-gray-700'}`}>
                     {e.error ? '—' : `${e.data.debtToEquity.toFixed(2)}x`}
                   </td>
                 </tr>
@@ -884,23 +1122,50 @@ function ConsolidatedBSView({ data, insights }: { data: ConsolidatedBS; insights
 function ConsolidatedCFView({ data, insights }: { data: ConsolidatedCF; insights: CFOInsight[] }) {
   const { group: g, entities } = data
 
-  const barData = {
-    labels: entities.filter((e) => !e.error).map((e) => e.orgShort),
+  const cfEntities = entities.filter((e) => !e.error)
+
+  const cfBarData = {
+    labels: cfEntities.map((e) => e.orgShort),
     datasets: [
-      { label: 'Operating', data: entities.filter((e) => !e.error).map((e) => e.data.totalOperating * e.fxRate), backgroundColor: '#10B981AA' },
-      { label: 'Investing', data: entities.filter((e) => !e.error).map((e) => e.data.totalInvesting * e.fxRate), backgroundColor: '#F59E0BAA' },
-      { label: 'Financing', data: entities.filter((e) => !e.error).map((e) => e.data.totalFinancing * e.fxRate), backgroundColor: '#8B18E8AA' },
+      {
+        label: 'Operating CF',
+        data: cfEntities.map((e) => e.data.totalOperating * e.fxRate),
+        backgroundColor: '#10B98177',
+        borderColor: '#10B981',
+        borderWidth: 1.5,
+        borderRadius: 6,
+      },
+      {
+        label: 'Investing CF',
+        data: cfEntities.map((e) => e.data.totalInvesting * e.fxRate),
+        backgroundColor: '#F59E0B77',
+        borderColor: '#F59E0B',
+        borderWidth: 1.5,
+        borderRadius: 6,
+      },
+      {
+        label: 'Free Cash Flow',
+        data: cfEntities.map((e) => e.data.freeCashFlow * e.fxRate),
+        backgroundColor: cfEntities.map((e) =>
+          e.data.freeCashFlow >= 0 ? '#8B18E888' : '#EF444488'
+        ),
+        borderColor: cfEntities.map((e) =>
+          e.data.freeCashFlow >= 0 ? '#8B18E8' : '#EF4444'
+        ),
+        borderWidth: 1.5,
+        borderRadius: 6,
+      },
     ],
   }
 
-  const chartOptions: any = {
-    responsive: true,
-    plugins: { legend: { labels: { color: '#374151', font: { size: 11 } } } },
-    scales: {
-      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(139,24,232,0.08)' } },
-      y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(139,24,232,0.08)' } },
-    },
-  }
+  // Cash flow summary bars
+  const cfSummary = [
+    { label: 'Operating CF', value: g.totalOperatingMyr, color: '#10B981' },
+    { label: 'Investing CF', value: g.totalInvestingMyr, color: '#F59E0B' },
+    { label: 'Financing CF', value: g.totalFinancingMyr, color: '#8B18E8' },
+    { label: 'Free Cash Flow', value: g.freeCashFlowMyr, color: g.freeCashFlowMyr >= 0 ? '#059669' : '#dc2626' },
+  ]
+  const maxCFVal = Math.max(...cfSummary.map((c) => Math.abs(c.value)), 1)
 
   return (
     <div className="space-y-6">
@@ -911,9 +1176,45 @@ function ConsolidatedCFView({ data, insights }: { data: ConsolidatedCF; insights
         <KpiCard label="Free Cash Flow" value={fmtCurrency(g.freeCashFlowMyr)} />
       </div>
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">Cash Flow by Entity (MYR)</h3>
-        <Bar data={barData} options={chartOptions} height={200} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Cascade */}
+        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+          <div className="section-accent-bar" />
+          <div className="p-5">
+            <h3 className="text-sm font-semibold text-gray-800 mb-5">Cash Flow Summary (MYR)</h3>
+            <div className="space-y-3">
+              {cfSummary.map((item) => {
+                const barPct = (Math.abs(item.value) / maxCFVal) * 100
+                const isNeg = item.value < 0
+                const textOnBar = barPct > 35
+                return (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <div className="w-24 text-xs font-semibold text-gray-600 text-right shrink-0">{item.label}</div>
+                    <div className="flex-1 relative h-9 rounded-lg overflow-hidden bg-black/[0.04]">
+                      <div className="h-full rounded-lg transition-all duration-700 ease-out"
+                        style={{
+                          width: `${Math.max(barPct, 1)}%`,
+                          background: isNeg
+                            ? 'linear-gradient(90deg, #ef4444, #f87171)'
+                            : `linear-gradient(90deg, ${item.color}DD, ${item.color}88)`,
+                        }} />
+                      <span className="absolute inset-0 flex items-center px-3 text-xs font-bold tabular-nums"
+                        style={{ color: textOnBar ? '#fff' : (isNeg ? '#dc2626' : item.color) }}>
+                        {fmtCurrency(item.value)}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Entity bar chart */}
+        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">Cash Flow by Entity (MYR)</h3>
+          <Bar data={cfBarData} options={CHART_OPTIONS} height={220} />
+        </div>
       </div>
 
       <InsightsPanel insights={insights} />

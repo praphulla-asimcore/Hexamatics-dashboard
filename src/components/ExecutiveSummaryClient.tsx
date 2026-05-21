@@ -1,10 +1,19 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { DashboardData, PeriodDef } from '@/types'
-import type { ConsolidatedPL, ConsolidatedBS, ConsolidatedCF, CFOInsight } from '@/types/financials'
+import type {
+  ConsolidatedPL, ConsolidatedBS, ConsolidatedCF, CFOInsight,
+  PLStatement, BalanceSheetStatement, CashFlowStatement,
+} from '@/types/financials'
+import { ORGS } from '@/lib/orgs'
 import { fmtMyr, dsoColor } from '@/lib/format'
-import { variance, varianceLabel, insightColor, insightIcon } from '@/lib/financial-analytics'
+import {
+  variance, varianceLabel, insightColor, insightIcon,
+  buildConsolidatedPL, buildConsolidatedBS, buildConsolidatedCF,
+  generatePLInsights, generateBSInsights, generateCFInsights,
+} from '@/lib/financial-analytics'
+import { getFinancialPeriodLabel } from '@/lib/zoho-reports'
 import { KpiCard } from './KpiCard'
 import { NavBar } from './NavBar'
 import { PeriodSelector } from './PeriodSelector'
@@ -83,40 +92,104 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
   const [data, setData]   = useState<DashboardData>(initialData)
   const [period, setPeriod] = useState<PeriodDef>(initialPeriod)
   const [loading, setLoading] = useState(false)
+  const [loadedCount, setLoadedCount] = useState(0)
   const [plData, setPlData] = useState<{ consolidated: ConsolidatedPL; insights: CFOInsight[] } | null>(null)
   const [bsData, setBsData] = useState<{ consolidated: ConsolidatedBS; insights: CFOInsight[] } | null>(null)
   const [cfData, setCfData] = useState<{ consolidated: ConsolidatedCF; insights: CFOInsight[] } | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   const fetchAll = useCallback(async (p: PeriodDef) => {
+    // Cancel any in-flight fetches from a previous period selection
+    abortRef.current?.abort()
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+
     setLoading(true)
+    setLoadedCount(0)
+    setPlData(null); setBsData(null); setCfData(null)
+
+    const arP  = buildArParams(p)
+    const finP = buildFinParams(p)
+
+    // AR data — fast single call
     try {
-      const arP  = buildArParams(p)
-      const finP = buildFinParams(p)
-
-      // Fetch AR data immediately (separate Zoho service, no rate limit conflict)
-      const arRes  = await fetch(`/api/zoho/dashboard?${arP}`)
+      const arRes = await fetch(`/api/zoho/dashboard?${arP}`, { signal: ctrl.signal })
       const arJson = await arRes.json()
-      if (!arJson.error) setData(arJson)
-
-      // Fetch financials sequentially to avoid Zoho 429 rate limits
-      // Each type fetches 9 orgs one-by-one; running them in parallel would
-      // triple the concurrent request count and reliably trigger throttling.
-      const plRes  = await fetch(`/api/financials/pl?${finP}`)
-      const plJson = await plRes.json()
-      if (plJson.consolidated) setPlData(plJson)
-
-      const bsRes  = await fetch(`/api/financials/bs?${finP}`)
-      const bsJson = await bsRes.json()
-      if (bsJson.consolidated) setBsData(bsJson)
-
-      const cfRes  = await fetch(`/api/financials/cf?${finP}`)
-      const cfJson = await cfRes.json()
-      if (cfJson.consolidated) setCfData(cfJson)
-    } catch (err) {
-      console.error('Executive summary fetch error:', err)
-    } finally {
-      setLoading(false)
+      if (!arJson.error && !ctrl.signal.aborted) setData(arJson)
+    } catch (err: any) {
+      if (err.name === 'AbortError') return
     }
+
+    if (ctrl.signal.aborted) return
+
+    // Financial data — fetch one entity at a time, consolidate progressively
+    // This matches the FinancialsClient approach: avoids server-side bulk timeouts
+    // and shows live progress as each entity loads.
+    const plStmts: PLStatement[] = []
+    const bsStmts: BalanceSheetStatement[] = []
+    const cfStmts: CashFlowStatement[] = []
+
+    const finLabel = getFinancialPeriodLabel({
+      mode: (p.mode === 'ytd' || p.mode === 'rolling12' ? 'year' : p.mode) as any,
+      year: p.year, month: p.month, quarter: p.quarter, half: p.half,
+      comparison: (p.comparison ?? 'previous') as any,
+      customFrom: p.customFrom, customTo: p.customTo,
+    })
+
+    for (let i = 0; i < ORGS.length; i++) {
+      if (ctrl.signal.aborted) break
+      const org = ORGS[i]
+      const ep = new URLSearchParams(finP)
+      ep.set('orgId', org.id)
+
+      try {
+        const plRes = await fetch(`/api/financials/pl?${ep}`, { signal: ctrl.signal })
+        if (plRes.ok) {
+          const j = await plRes.json()
+          if (j.statement) plStmts.push(j.statement)
+        }
+        if (ctrl.signal.aborted) break
+
+        const bsRes = await fetch(`/api/financials/bs?${ep}`, { signal: ctrl.signal })
+        if (bsRes.ok) {
+          const j = await bsRes.json()
+          if (j.statement) bsStmts.push(j.statement)
+        }
+        if (ctrl.signal.aborted) break
+
+        const cfRes = await fetch(`/api/financials/cf?${ep}`, { signal: ctrl.signal })
+        if (cfRes.ok) {
+          const j = await cfRes.json()
+          if (j.statement) cfStmts.push(j.statement)
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') break
+        const stub: any = {
+          orgId: org.id, orgShort: org.short, currency: org.currency,
+          fxRate: org.fxToMyr ?? 1, error: err.message,
+          data: {}, dateRange: { from: '', to: '' }, asOfDate: '',
+        }
+        plStmts.push(stub); bsStmts.push(stub); cfStmts.push(stub)
+      }
+
+      if (!ctrl.signal.aborted) {
+        setLoadedCount(i + 1)
+        if (plStmts.length) {
+          const c = buildConsolidatedPL(plStmts, finLabel)
+          setPlData({ consolidated: c, insights: generatePLInsights(c) })
+        }
+        if (bsStmts.length) {
+          const c = buildConsolidatedBS(bsStmts, bsStmts[0]?.asOfDate ?? '')
+          setBsData({ consolidated: c, insights: generateBSInsights(c) })
+        }
+        if (cfStmts.length) {
+          const c = buildConsolidatedCF(cfStmts)
+          setCfData({ consolidated: c, insights: generateCFInsights(c) })
+        }
+      }
+    }
+
+    if (!ctrl.signal.aborted) setLoading(false)
   }, [])
 
   const handlePeriodChange = useCallback((p: PeriodDef) => {
