@@ -34,9 +34,11 @@ function buildArParams(p: PeriodDef): URLSearchParams {
     year: String(p.year),
     comparison: p.comparison ?? 'previous',
   })
-  if (p.month)   params.set('month',   String(p.month))
-  if (p.quarter) params.set('quarter', String(p.quarter))
-  if (p.half)    params.set('half',    String(p.half))
+  if (p.month)      params.set('month',      String(p.month))
+  if (p.quarter)    params.set('quarter',    String(p.quarter))
+  if (p.half)       params.set('half',       String(p.half))
+  if (p.customFrom) params.set('customFrom', p.customFrom)
+  if (p.customTo)   params.set('customTo',   p.customTo)
   return params
 }
 
@@ -50,6 +52,8 @@ function buildFinParams(p: PeriodDef): URLSearchParams {
   if (p.month   && mode === 'month')   params.set('month',   String(p.month))
   if (p.quarter && mode === 'quarter') params.set('quarter', String(p.quarter))
   if (p.half    && mode === 'half')    params.set('half',    String(p.half))
+  if (p.customFrom) params.set('customFrom', p.customFrom)
+  if (p.customTo)   params.set('customTo',   p.customTo)
   return params
 }
 

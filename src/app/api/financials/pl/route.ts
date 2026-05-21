@@ -21,7 +21,9 @@ function parsePeriod(sp: URLSearchParams): FinancialPeriod {
   const quarter = sp.has('quarter') ? (parseInt(sp.get('quarter')!) as 1|2|3|4) : undefined
   const half = sp.has('half') ? (parseInt(sp.get('half')!) as 1|2) : undefined
   const comparison = (sp.get('comparison') ?? 'previous') as FinancialPeriod['comparison']
-  return { mode, year, month, quarter, half, comparison }
+  const customFrom = sp.get('customFrom') ?? undefined
+  const customTo = sp.get('customTo') ?? undefined
+  return { mode, year, month, quarter, half, comparison, customFrom, customTo }
 }
 
 export async function GET(req: Request) {

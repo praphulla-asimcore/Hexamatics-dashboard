@@ -30,6 +30,10 @@ export function getFinancialDateRange(period: FinancialPeriod): { from: string; 
   const { mode, year, month, quarter, half } = period
   const now = new Date()
 
+  if (period.mode === 'custom' && period.customFrom && period.customTo) {
+    return { from: period.customFrom, to: period.customTo }
+  }
+
   if (mode === 'month' && month) {
     const from = `${year}-${pad(month)}-01`
     const to = `${year}-${pad(month)}-${lastDay(year, month)}`
@@ -53,6 +57,7 @@ export function getFinancialDateRange(period: FinancialPeriod): { from: string; 
 
 export function getComparisonPeriod(period: FinancialPeriod): FinancialPeriod | null {
   if (period.comparison === 'none') return null
+  if (period.mode === 'custom') return null
   if (period.comparison === 'yoy') return { ...period, year: period.year - 1, comparison: 'none' }
   // previous
   if (period.mode === 'month') {
@@ -78,6 +83,7 @@ export function getComparisonPeriod(period: FinancialPeriod): FinancialPeriod | 
 
 export function getFinancialPeriodLabel(period: FinancialPeriod): string {
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  if (period.mode === 'custom' && period.customFrom && period.customTo) return `${period.customFrom} – ${period.customTo}`
   if (period.mode === 'month' && period.month) return `${MONTHS[period.month - 1]} ${period.year}`
   if (period.mode === 'quarter' && period.quarter) return `Q${period.quarter} ${period.year}`
   if (period.mode === 'half') return `H${period.half ?? 1} ${period.year}`

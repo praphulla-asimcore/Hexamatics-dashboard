@@ -23,6 +23,10 @@ export function getPeriodDateRange(period: PeriodDef): { from: string; to: strin
   const { mode, year, month, quarter, half } = period
   const now = new Date()
 
+  if (mode === 'custom' && period.customFrom && period.customTo) {
+    return { from: period.customFrom, to: period.customTo }
+  }
+
   if (mode === 'month' && month) {
     const from = `${year}-${String(month).padStart(2, '0')}-01`
     const lastDay = new Date(year, month, 0).getDate()

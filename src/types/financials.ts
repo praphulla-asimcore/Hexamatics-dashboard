@@ -1,12 +1,14 @@
 // ─── Financial Period ────────────────────────────────────────────────────────
 
 export interface FinancialPeriod {
-  mode: 'month' | 'quarter' | 'half' | 'year'
+  mode: 'month' | 'quarter' | 'half' | 'year' | 'custom'
   year: number
   month?: number           // 1–12 for mode='month'
   quarter?: 1 | 2 | 3 | 4 // for mode='quarter'
   half?: 1 | 2             // for mode='half'
   comparison: 'previous' | 'yoy' | 'none'
+  customFrom?: string      // ISO date string (mode='custom')
+  customTo?: string        // ISO date string (mode='custom')
 }
 
 // ─── Generic Line Item ────────────────────────────────────────────────────────

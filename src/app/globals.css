@@ -4,99 +4,323 @@
 
 @layer base {
   * { box-sizing: border-box; }
-
-  /* Dark mode scrollbar */
-  .dark ::-webkit-scrollbar { width: 5px; height: 5px; }
-  .dark ::-webkit-scrollbar-track { background: #0d1117; }
-  .dark ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
-  .dark ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
-
-  /* Light mode scrollbar */
-  :root:not(.dark) ::-webkit-scrollbar { width: 5px; height: 5px; }
-  :root:not(.dark) ::-webkit-scrollbar-track { background: #f1f5f9; }
-  :root:not(.dark) ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-  :root:not(.dark) ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: #f7f8ff; }
+  ::-webkit-scrollbar-thumb { background: #c4b5f4; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #a78bfa; }
 }
-
 @layer utilities {
   .tabular-nums { font-variant-numeric: tabular-nums; }
 }
 
-/* ── Light mode overrides ────────────────────────────────────────────────────
-   App was built dark-first. When `.dark` is absent from <html>, remap the
-   gray palette to light equivalents. Specificity beats Tailwind's [0,0,1,0].
-   ─────────────────────────────────────────────────────────────────────────── */
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+html { color-scheme: light; }
+body { background-color: #f7f8ff; color: #0a0a0f; }
 
-html:not(.dark) {
-  color-scheme: light;
+/* ── Tailwind dark-first gray remapping ────────────────────────────────────── */
+
+/* Section cards — frosted glass */
+[class*="bg-gray-900"]:not([class*="bg-gray-900/"]) {
+  background-color: rgba(255,255,255,0.68) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  box-shadow: 0 4px 24px rgba(139,24,232,0.06), 0 1px 4px rgba(0,0,0,0.05),
+              inset 0 1px 0 rgba(255,255,255,0.85) !important;
 }
+/* Opacity variants */
+.bg-gray-900\/60 { background-color: rgba(255,255,255,0.52) !important; }
+.bg-gray-900\/40 { background-color: rgba(255,255,255,0.40) !important; }
+.bg-gray-900\/30 { background-color: rgba(255,255,255,0.30) !important; }
 
-/* Page / layout backgrounds */
-html:not(.dark) [class*="bg-gray-950"] { background-color: #f1f5f9 !important; }
-html:not(.dark) [class*="bg-gray-900"] { background-color: #ffffff !important; }
-html:not(.dark) [class*="bg-gray-800"] { background-color: #f8fafc !important; }
-html:not(.dark) [class*="bg-gray-700"] { background-color: #e2e8f0 !important; }
+/* Sub-cards & inner surfaces */
+[class*="bg-gray-800"]:not([class*="bg-gray-800/"]) {
+  background-color: rgba(247,248,255,0.80) !important;
+}
+.bg-gray-800\/60 {
+  background-color: rgba(255,255,255,0.60) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9) !important;
+}
+.bg-gray-800\/40 { background-color: rgba(247,248,255,0.55) !important; }
+.bg-gray-800\/30 { background-color: rgba(241,245,249,0.45) !important; }
+.bg-gray-950\/95 { background-color: rgba(255,255,255,0.82) !important;
+                   backdrop-filter: blur(16px) !important;
+                   -webkit-backdrop-filter: blur(16px) !important; }
 
-/* Sticky nav / backdrop */
-html:not(.dark) nav,
-html:not(.dark) header { background-color: rgba(255,255,255,0.97) !important; }
+[class*="bg-gray-700"] { background-color: #ede9fe !important; }
+[class*="bg-gray-950"]  { background-color: #f7f8ff !important; }
 
 /* Text */
-html:not(.dark) .text-white    { color: #0f172a !important; }
-html:not(.dark) .text-gray-100 { color: #0f172a !important; }
-html:not(.dark) .text-gray-200 { color: #1e293b !important; }
-html:not(.dark) .text-gray-300 { color: #334155 !important; }
-html:not(.dark) .text-gray-400 { color: #475569 !important; }
-html:not(.dark) .text-gray-500 { color: #64748b !important; }
-html:not(.dark) .text-gray-600 { color: #94a3b8 !important; }
+.text-white    { color: #0f172a !important; }
+.text-gray-100 { color: #0f172a !important; }
+.text-gray-200 { color: #1e293b !important; }
+.text-gray-300 { color: #334155 !important; }
+.text-gray-400 { color: #6b7280 !important; }
+.text-gray-500 { color: #64748b !important; }
+.text-gray-600 { color: #94a3b8 !important; }
 
-/* Borders & dividers */
-html:not(.dark) [class*="border-gray-800"] { border-color: #e2e8f0 !important; }
-html:not(.dark) [class*="border-gray-700"] { border-color: #cbd5e1 !important; }
-html:not(.dark) [class*="border-gray-600"] { border-color: #94a3b8 !important; }
-html:not(.dark) [class*="divide-gray-800"] { border-color: #e2e8f0 !important; }
-html:not(.dark) [class*="border-t-2"]      { border-color: #e2e8f0 !important; }
+/* Hover text */
+.hover\:text-white:hover   { color: #0f172a !important; }
+.hover\:text-gray-300:hover { color: #475569 !important; }
 
-/* Specific overrides for highlighted total rows */
-html:not(.dark) .border-hexa-purple { border-color: #8B18E8 !important; }
-html:not(.dark) .border-t-2.border-hexa-purple { border-color: #8B18E8 !important; }
+/* Borders */
+[class*="border-gray-800"] { border-color: rgba(139,24,232,0.10) !important; }
+[class*="border-gray-700"] { border-color: rgba(139,24,232,0.14) !important; }
+[class*="border-gray-600"] { border-color: #c4b5f4 !important; }
+[class*="divide-gray-800"] { border-color: rgba(139,24,232,0.08) !important; }
 
-/* Form inputs / selects */
-html:not(.dark) select,
-html:not(.dark) input[type="text"],
-html:not(.dark) input[type="email"],
-html:not(.dark) input[type="password"] {
-  background-color: #f8fafc !important;
+/* Accent colors — unchanged */
+.text-emerald-400 { color: #059669 !important; }
+.text-red-400     { color: #dc2626 !important; }
+.text-amber-400   { color: #d97706 !important; }
+.text-blue-400    { color: #2563eb !important; }
+.text-purple-300,
+.text-purple-400,
+.text-purple-500  { color: #7c3aed !important; }
+.border-hexa-purple            { border-color: #8B18E8 !important; }
+.border-t-2.border-hexa-purple { border-color: #8B18E8 !important; }
+.border-purple-500             { border-color: #8B18E8 !important; }
+.border-t-transparent          { border-top-color: transparent !important; }
+
+/* Form inputs */
+select,
+input[type="text"],
+input[type="email"],
+input[type="password"] {
+  background-color: rgba(255,255,255,0.80) !important;
   color: #0f172a !important;
-  border-color: #e2e8f0 !important;
+  border-color: rgba(139,24,232,0.15) !important;
 }
 
-/* Body base */
-html:not(.dark) body {
-  background-color: #f1f5f9;
-  color: #0f172a;
+/* Hover bg */
+.hover\:bg-gray-700:hover { background-color: rgba(237,233,254,0.7) !important; }
+.hover\:bg-gray-800:hover { background-color: rgba(237,233,254,0.5) !important; }
+.hover\:bg-gray-800\/60:hover { background-color: rgba(237,233,254,0.6) !important; }
+
+/* Progress track */
+[class*="bg-gray-700"][class*="rounded-full"] { background-color: rgba(139,24,232,0.10) !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   AMBIENT DESIGN SYSTEM
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Keyframes ─────────────────────────────────────────────────────────────── */
+@keyframes orb-drift-1 {
+  0%   { transform: translate(0,0) scale(1); }
+  100% { transform: translate(60px,80px) scale(1.08); }
+}
+@keyframes orb-drift-2 {
+  0%   { transform: translate(0,0) scale(1); }
+  100% { transform: translate(-70px,-60px) scale(1.12); }
+}
+@keyframes orb-drift-3 {
+  0%   { transform: translate(0,0) scale(1); }
+  100% { transform: translate(50px,-90px) scale(0.94); }
+}
+@keyframes card-fade-up {
+  from { opacity: 0; transform: translateY(36px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+@keyframes pulse-ring {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139,24,232,0.20); }
+  50%       { box-shadow: 0 0 0 8px rgba(139,24,232,0); }
+}
+@keyframes float-up {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
 }
 
-/* Keep gradient/accent colors unchanged in light mode */
-html:not(.dark) .text-emerald-400 { color: #059669 !important; }
-html:not(.dark) .text-red-400     { color: #dc2626 !important; }
-html:not(.dark) .text-amber-400   { color: #d97706 !important; }
-html:not(.dark) .text-purple-300  { color: #7c3aed !important; }
-html:not(.dark) .text-purple-400  { color: #7c3aed !important; }
-html:not(.dark) .text-purple-500  { color: #7c3aed !important; }
+/* ── Ambient background layer ──────────────────────────────────────────────── */
+.light-bg-layer {
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 0; overflow: hidden;
+}
+.light-orb { position: absolute; border-radius: 50%; filter: blur(90px); }
+.light-orb-purple {
+  width: 520px; height: 520px;
+  background: rgba(139,24,232,0.12);
+  top: -120px; left: -80px;
+  animation: orb-drift-1 18s ease-in-out infinite alternate;
+}
+.light-orb-magenta {
+  width: 440px; height: 440px;
+  background: rgba(224,16,200,0.09);
+  bottom: 60px; right: -100px;
+  animation: orb-drift-2 22s ease-in-out infinite alternate;
+}
+.light-orb-teal {
+  width: 380px; height: 380px;
+  background: rgba(23,184,165,0.08);
+  top: 40%; left: 55%;
+  animation: orb-drift-3 26s ease-in-out infinite alternate;
+}
+.light-hex-grid {
+  position: absolute; inset: 0; opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z' fill='none' stroke='%230a0a0f' stroke-width='1'/%3E%3Cpath d='M28 62 L54 77 L54 107 L28 122 L2 107 L2 77 Z' fill='none' stroke='%230a0a0f' stroke-width='1'/%3E%3C/svg%3E");
+  background-size: 56px 100px;
+}
 
-/* Keep table accent rows visible in light mode */
-html:not(.dark) .bg-gray-900\/60 { background-color: rgba(248,250,252,0.9) !important; }
-html:not(.dark) .bg-gray-900\/40 { background-color: rgba(248,250,252,0.7) !important; }
-html:not(.dark) .bg-gray-900\/30 { background-color: rgba(248,250,252,0.5) !important; }
-html:not(.dark) .bg-gray-800\/30 { background-color: rgba(241,245,249,0.5) !important; }
-html:not(.dark) .bg-gray-800\/60 { background-color: rgba(241,245,249,0.8) !important; }
-html:not(.dark) .bg-gray-950\/95 { background-color: rgba(255,255,255,0.97) !important; }
+/* ── 3D Tilt card ──────────────────────────────────────────────────────────── */
+.tilt-3d {
+  transition: transform 0.20s ease-out,
+              box-shadow 0.20s ease-out;
+  transform-style: preserve-3d;
+  will-change: transform;
+  position: relative;
+}
+.tilt-3d:hover {
+  box-shadow: 0 20px 50px rgba(139,24,232,0.14), 0 8px 20px rgba(0,0,0,0.08) !important;
+}
+.tilt-gloss {
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--gx, 50%) var(--gy, 50%),
+    rgba(255,255,255,0.38) 0%,
+    transparent 58%
+  );
+  pointer-events: none; z-index: 10;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+.tilt-3d:hover .tilt-gloss { opacity: 1; }
 
-/* Animate spin (loading) stays visible */
-html:not(.dark) .border-purple-500 { border-color: #8B18E8 !important; }
-html:not(.dark) .border-t-transparent { border-top-color: transparent !important; }
+/* ── KPI Cards ─────────────────────────────────────────────────────────────── */
+.kpi-card {
+  background: linear-gradient(145deg, rgba(255,255,255,0.92), rgba(255,255,255,0.78)) !important;
+  border: 1px solid rgba(139,24,232,0.10) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 2px 16px rgba(139,24,232,0.07), 0 1px 4px rgba(0,0,0,0.05),
+              inset 0 1px 0 rgba(255,255,255,0.95) !important;
+  overflow: hidden !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+/* Sheen sweep on hover (CSS handles it, Tilt3D adds the gloss) */
+.kpi-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+  transform: translateX(-200%) skewX(-10deg);
+  transition: transform 0.7s cubic-bezier(0.23,1,0.32,1);
+  pointer-events: none; z-index: 2;
+}
+.tilt-3d:hover .kpi-card::after { transform: translateX(200%) skewX(-10deg); }
 
-/* Hover states */
-html:not(.dark) .hover\:bg-gray-700:hover  { background-color: #e2e8f0 !important; }
-html:not(.dark) .hover\:bg-gray-800:hover  { background-color: #f1f5f9 !important; }
+/* Top strip: light mode */
+.kpi-top-strip  { display: block !important; }
+.kpi-left-strip { display: none !important; }
+
+/* Value text */
+.kpi-card .text-gray-500 { color: #6b7280 !important; }
+.kpi-card .text-white    { color: #0a0a0f !important; }
+
+/* Card entrance */
+.kpi-card-enter {
+  animation: card-fade-up 0.7s cubic-bezier(0.23,1,0.32,1) both;
+}
+
+/* ── Section cards (auto-styled via bg-gray-900 remapping above) ──────────── */
+/* Extra: gradient top accent on section headers */
+.section-accent-bar {
+  height: 3px;
+  background: linear-gradient(90deg, #E8177A 0%, #8B18E8 50%, #1B1BE8 100%);
+  border-radius: 4px 4px 0 0;
+}
+
+/* ── Tab navigation ────────────────────────────────────────────────────────── */
+.tab-pill-active {
+  background: linear-gradient(90deg, #E8177A 0%, #8B18E8 55%, #1B1BE8 100%) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 16px rgba(139,24,232,0.30), 0 2px 6px rgba(232,23,122,0.20) !important;
+  border-color: transparent !important;
+  transform: translateY(-1px);
+}
+.tab-pill-inactive {
+  color: #64748b !important;
+  background: transparent !important;
+}
+.tab-pill-inactive:hover {
+  background: rgba(139,24,232,0.08) !important;
+  color: #7c3aed !important;
+}
+
+/* ── Alert banners ─────────────────────────────────────────────────────────── */
+.alert-critical {
+  border-color: #fca5a5 !important;
+  background-color: rgba(254,242,242,0.85) !important;
+  color: #b91c1c !important;
+  backdrop-filter: blur(6px);
+}
+.alert-warning {
+  border-color: #fcd34d !important;
+  background-color: rgba(255,251,235,0.85) !important;
+  color: #92400e !important;
+  backdrop-filter: blur(6px);
+}
+.alert-good {
+  border-color: #6ee7b7 !important;
+  background-color: rgba(236,253,245,0.85) !important;
+  color: #065f46 !important;
+  backdrop-filter: blur(6px);
+}
+.alert-info {
+  border-color: #93c5fd !important;
+  background-color: rgba(239,246,255,0.85) !important;
+  color: #1e40af !important;
+  backdrop-filter: blur(6px);
+}
+
+/* ── Scorecard grade badges ────────────────────────────────────────────────── */
+.grade-badge {
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.12), 0 3px 8px rgba(0,0,0,0.10);
+  filter: drop-shadow(0 2px 4px currentColor);
+}
+
+/* ── Entity mini-cards ─────────────────────────────────────────────────────── */
+.entity-mini-card {
+  background: rgba(255,255,255,0.65) !important;
+  border: 1px solid rgba(139,24,232,0.12) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 2px 10px rgba(139,24,232,0.06), inset 0 1px 0 rgba(255,255,255,0.9) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  transition: transform 0.25s cubic-bezier(0.23,1,0.32,1),
+              box-shadow 0.25s cubic-bezier(0.23,1,0.32,1) !important;
+}
+.entity-mini-card:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 8px 24px rgba(139,24,232,0.12), inset 0 1px 0 rgba(255,255,255,0.95) !important;
+}
+
+/* ── Progress bars ─────────────────────────────────────────────────────────── */
+.progress-track {
+  height: 6px;
+  background: rgba(139,24,232,0.10) !important;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 1.2s cubic-bezier(0.23,1,0.32,1);
+}
+
+/* ── Print ─────────────────────────────────────────────────────────────────── */
+@media print {
+  .light-bg-layer { display: none !important; }
+  [class*="bg-gray-900"]:not([class*="bg-gray-900/"]) {
+    background-color: #fff !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+}

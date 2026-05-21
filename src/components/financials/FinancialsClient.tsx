@@ -78,70 +78,113 @@ function PeriodSelector({
   const currentYear = now.getFullYear()
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
+  const [customFrom, setCustomFrom] = useState(period.customFrom ?? '')
+  const [customTo,   setCustomTo]   = useState(period.customTo   ?? '')
+
+  const applyCustom = () => {
+    if (!customFrom || !customTo) return
+    onChange({ ...period, mode: 'custom', customFrom, customTo })
+  }
+
+  const btnBase = 'px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap'
+  const btnActive = `${btnBase} bg-hexa-gradient text-white shadow-sm`
+  const btnInactive = `${btnBase} text-gray-500 hover:text-gray-900 hover:bg-black/[0.05]`
+
   return (
-    <div className="flex flex-wrap gap-2 items-center print:hidden">
-      {/* Mode */}
-      {(['month','quarter','half','year'] as const).map((m) => (
-        <button key={m} onClick={() => onChange({ ...period, mode: m })}
-          className={`px-3 py-1.5 rounded text-xs font-medium transition ${
-            period.mode === m ? 'bg-hexa-purple text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-          }`}>
-          {m === 'month' ? 'Month' : m === 'quarter' ? 'Quarter' : m === 'half' ? 'Half-Year' : 'Annual'}
-        </button>
-      ))}
-
-      <div className="w-px h-5 bg-gray-700" />
-
-      {/* Year */}
-      <select value={period.year} onChange={(e) => onChange({ ...period, year: parseInt(e.target.value) })}
-        className="bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded px-2 py-1.5 focus:outline-none">
-        {years.map((y) => <option key={y}>{y}</option>)}
-      </select>
-
-      {/* Month selector */}
-      {period.mode === 'month' && (
-        <select value={period.month ?? now.getMonth() + 1}
-          onChange={(e) => onChange({ ...period, month: parseInt(e.target.value) })}
-          className="bg-gray-800 border border-gray-700 text-gray-200 text-xs rounded px-2 py-1.5 focus:outline-none">
-          {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
-        </select>
-      )}
-
-      {/* Quarter selector */}
-      {period.mode === 'quarter' && (
-        <div className="flex gap-1">
-          {([1,2,3,4] as const).map((q) => (
-            <button key={q} onClick={() => onChange({ ...period, quarter: q })}
-              className={`px-2.5 py-1.5 rounded text-xs font-medium transition ${
-                period.quarter === q ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}>Q{q}</button>
+    <div className="flex flex-col gap-2 print:hidden">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {/* Mode */}
+        <div className="flex items-center gap-0.5 bg-black/[0.04] rounded-xl p-1 flex-wrap">
+          {(['month','quarter','half','year','custom'] as const).map((m) => (
+            <button key={m} onClick={() => onChange({ ...period, mode: m })}
+              className={period.mode === m ? btnActive : btnInactive}>
+              {m === 'month' ? 'Month' : m === 'quarter' ? 'Quarter' : m === 'half' ? 'Half-Year' : m === 'year' ? 'Annual' : 'Custom'}
+            </button>
           ))}
         </div>
-      )}
 
-      {/* Half selector */}
-      {period.mode === 'half' && (
-        <div className="flex gap-1">
-          {([1,2] as const).map((h) => (
-            <button key={h} onClick={() => onChange({ ...period, half: h })}
-              className={`px-2.5 py-1.5 rounded text-xs font-medium transition ${
-                period.half === h ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
-              }`}>H{h}</button>
-          ))}
-        </div>
-      )}
+        {/* Year — hidden for custom */}
+        {period.mode !== 'custom' && (
+          <select value={period.year} onChange={(e) => onChange({ ...period, year: parseInt(e.target.value) })}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple">
+            {years.map((y) => <option key={y}>{y}</option>)}
+          </select>
+        )}
 
-      <div className="w-px h-5 bg-gray-700" />
+        {/* Month selector */}
+        {period.mode === 'month' && (
+          <select value={period.month ?? now.getMonth() + 1}
+            onChange={(e) => onChange({ ...period, month: parseInt(e.target.value) })}
+            className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple">
+            {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+          </select>
+        )}
+
+        {/* Quarter selector */}
+        {period.mode === 'quarter' && (
+          <div className="flex gap-0.5 bg-black/[0.04] rounded-xl p-1">
+            {([1,2,3,4] as const).map((q) => (
+              <button key={q} onClick={() => onChange({ ...period, quarter: q })}
+                className={period.quarter === q ? btnActive : btnInactive}>
+                Q{q}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Half selector */}
+        {period.mode === 'half' && (
+          <div className="flex gap-0.5 bg-black/[0.04] rounded-xl p-1">
+            {([1,2] as const).map((h) => (
+              <button key={h} onClick={() => onChange({ ...period, half: h })}
+                className={period.half === h ? btnActive : btnInactive}>
+                H{h}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Custom date pickers */}
+        {period.mode === 'custom' && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500 font-medium">From</span>
+              <input type="date" value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                max={customTo || undefined}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500 font-medium">To</span>
+              <input type="date" value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                min={customFrom || undefined}
+                className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple" />
+            </div>
+            <button onClick={applyCustom} disabled={!customFrom || !customTo}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-hexa-gradient text-white disabled:opacity-40 transition">
+              Apply
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Comparison */}
-      {(['previous','yoy','none'] as const).map((c) => (
-        <button key={c} onClick={() => onChange({ ...period, comparison: c })}
-          className={`px-2.5 py-1.5 rounded text-xs transition ${
-            period.comparison === c ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
-          }`}>
-          {c === 'previous' ? 'vs Prior Period' : c === 'yoy' ? 'vs Last Year' : 'No Compare'}
-        </button>
-      ))}
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-500 font-medium">Compare:</span>
+        <div className="flex gap-0.5 bg-black/[0.04] rounded-lg p-0.5">
+          {(['previous','yoy','none'] as const).map((c) => (
+            <button key={c} onClick={() => onChange({ ...period, comparison: c })}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                period.comparison === c
+                  ? 'bg-white shadow-sm text-gray-900 border border-black/[0.06]'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {c === 'previous' ? 'vs Prior Period' : c === 'yoy' ? 'vs Last Year' : 'No Compare'}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
@@ -171,14 +214,14 @@ function StatementRow({
     : null
 
   const rowClass = isTotal
-    ? 'font-semibold text-white border-t border-gray-700'
+    ? 'font-semibold text-gray-900 border-t border-purple-100'
     : hasSubs
-    ? 'font-medium text-gray-200'
-    : 'text-gray-400'
+    ? 'font-medium text-gray-700'
+    : 'text-gray-500'
 
   return (
     <>
-      <tr className={`${rowClass} hover:bg-gray-800/30 transition`}>
+      <tr className={`${rowClass} hover:bg-purple-50/40 transition`}>
         <td className="py-1.5 pr-4" style={{ paddingLeft: `${indent * 16 + 12}px` }}>
           <div className="flex items-center gap-1.5">
             {hasSubs && (
@@ -221,15 +264,15 @@ function StatementTable({ children, comparisonLabel }: { children: React.ReactNo
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-xs text-gray-500 border-b border-gray-800">
+          <tr className="text-xs text-gray-500 border-b border-purple-100">
             <th className="text-left pb-2 pl-3 font-medium">Account</th>
             <th className="text-right pb-2 font-medium">Local Currency</th>
             <th className="text-right pb-2 font-medium">MYR (FX Adj.)</th>
-            <th className="text-right pb-2 font-medium text-gray-600">{comparisonLabel ?? 'Prior Period'}</th>
+            <th className="text-right pb-2 font-medium text-gray-400">{comparisonLabel ?? 'Prior Period'}</th>
             <th className="text-right pb-2 font-medium">Change</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-gray-800/50">{children}</tbody>
+        <tbody className="divide-y divide-purple-100/60">{children}</tbody>
       </table>
     </div>
   )
@@ -240,7 +283,7 @@ function StatementTable({ children, comparisonLabel }: { children: React.ReactNo
 function SectionRow({ label }: { label: string }) {
   return (
     <tr>
-      <td colSpan={5} className="py-3 pl-3 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-900/40 border-b border-gray-800">
+      <td colSpan={5} className="py-3 pl-3 text-[10px] font-bold text-hexa-purple uppercase tracking-widest bg-purple-50/40 border-b border-purple-100">
         {label}
       </td>
     </tr>
@@ -259,12 +302,12 @@ function TotalRow({
     ? ((myr - compMyr) / Math.abs(compMyr)) * 100 : undefined
 
   return (
-    <tr className={`font-bold border-t-2 ${highlight ? 'border-hexa-purple bg-gray-900/60' : 'border-gray-700 bg-gray-900/30'}`}>
-      <td className="py-2 pl-3 text-white">{label}</td>
-      <td className={`py-2 text-right tabular-nums ${amount < 0 ? 'text-red-400' : 'text-white'}`}>
+    <tr className={`font-bold border-t-2 ${highlight ? 'border-hexa-purple bg-purple-50/60' : 'border-purple-200/60 bg-gray-50/40'}`}>
+      <td className="py-2 pl-3 text-gray-900">{label}</td>
+      <td className={`py-2 text-right tabular-nums ${amount < 0 ? 'text-red-400' : 'text-gray-900'}`}>
         {fmtCurrency(isNegative ? -amount : amount, currency)}
       </td>
-      <td className={`py-2 text-right tabular-nums ${myr < 0 ? 'text-red-400' : highlight ? 'text-purple-300' : 'text-gray-300'}`}>
+      <td className={`py-2 text-right tabular-nums ${myr < 0 ? 'text-red-400' : highlight ? 'text-hexa-purple' : 'text-gray-700'}`}>
         {fmtCurrency(isNegative ? -myr : myr, 'MYR')}
       </td>
       <td className="py-2 text-right tabular-nums text-gray-500">
@@ -627,10 +670,10 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
 
   const chartOptions: any = {
     responsive: true,
-    plugins: { legend: { labels: { color: '#9CA3AF', font: { size: 11 } } }, tooltip: { mode: 'index' } },
+    plugins: { legend: { labels: { color: '#374151', font: { size: 11 } } }, tooltip: { mode: 'index' } },
     scales: {
-      x: { ticks: { color: '#6B7280' }, grid: { color: '#1F2937' } },
-      y: { ticks: { color: '#6B7280' }, grid: { color: '#1F2937' } },
+      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(139,24,232,0.08)' } },
+      y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(139,24,232,0.08)' } },
     },
   }
 
@@ -658,7 +701,7 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
           <h3 className="text-sm font-medium text-gray-300 mb-3">Revenue Mix</h3>
           <Doughnut data={donutData} options={{
             responsive: true,
-            plugins: { legend: { position: 'bottom', labels: { color: '#9CA3AF', font: { size: 10 }, boxWidth: 12 } } },
+            plugins: { legend: { position: 'bottom', labels: { color: '#374151', font: { size: 10 }, boxWidth: 12 } } },
           }} />
         </div>
       </div>
@@ -791,7 +834,7 @@ function ConsolidatedBSView({ data, insights }: { data: ConsolidatedBS; insights
                 borderWidth: 1,
               }],
             }}
-            options={{ responsive: true, plugins: { legend: { labels: { color: '#9CA3AF' } } } }}
+            options={{ responsive: true, plugins: { legend: { labels: { color: '#374151' } } } }}
           />
           <div className="text-xs text-gray-500 text-center">D/E Ratio: {g.debtToEquity.toFixed(2)}x</div>
         </div>
@@ -852,10 +895,10 @@ function ConsolidatedCFView({ data, insights }: { data: ConsolidatedCF; insights
 
   const chartOptions: any = {
     responsive: true,
-    plugins: { legend: { labels: { color: '#9CA3AF', font: { size: 11 } } } },
+    plugins: { legend: { labels: { color: '#374151', font: { size: 11 } } } },
     scales: {
-      x: { ticks: { color: '#6B7280' }, grid: { color: '#1F2937' } },
-      y: { ticks: { color: '#6B7280' }, grid: { color: '#1F2937' } },
+      x: { ticks: { color: '#64748b' }, grid: { color: 'rgba(139,24,232,0.08)' } },
+      y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(139,24,232,0.08)' } },
     },
   }
 
@@ -912,6 +955,8 @@ export function FinancialsClient() {
     if (period.month) sp.set('month', String(period.month))
     if (period.quarter) sp.set('quarter', String(period.quarter))
     if (period.half) sp.set('half', String(period.half))
+    if (period.customFrom) sp.set('customFrom', period.customFrom)
+    if (period.customTo)   sp.set('customTo',   period.customTo)
     if (view !== 'consolidated') sp.set('orgId', view)
     Object.entries(extra).forEach(([k, v]) => sp.set(k, v))
     return sp.toString()
@@ -945,6 +990,8 @@ export function FinancialsClient() {
       if (period.month) baseParams.set('month', String(period.month))
       if (period.quarter) baseParams.set('quarter', String(period.quarter))
       if (period.half) baseParams.set('half', String(period.half))
+      if (period.customFrom) baseParams.set('customFrom', period.customFrom)
+      if (period.customTo)   baseParams.set('customTo',   period.customTo)
       if (force) baseParams.set('force', '1')
 
       const plStatements: PLStatement[] = []
@@ -1061,41 +1108,80 @@ export function FinancialsClient() {
       {/* Print styles */}
       <style>{`
         @media print {
-          body { background: white !important; color: black !important; }
-          .print\\:hidden { display: none !important; }
-          .bg-gray-950, .bg-gray-900, .bg-gray-800 { background: white !important; border: 1px solid #e5e7eb !important; }
-          .text-white, .text-gray-200, .text-gray-300, .text-gray-400 { color: black !important; }
-          .text-gray-500, .text-gray-600 { color: #6B7280 !important; }
+          @page { size: A4; margin: 16mm 14mm; }
+          body { background: white !important; color: #0f172a !important; font-family: 'Inter', sans-serif !important; font-size: 10pt !important; }
+
+          /* Hide all interactive UI */
+          .print\\:hidden, nav, header { display: none !important; }
+
+          /* Reset glass effects */
+          * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+              box-shadow: none !important; }
+
+          /* Section containers */
+          [class*="bg-gray-900"], [class*="bg-gray-800"] {
+            background: white !important; border: 1px solid #e5e7eb !important;
+            border-radius: 6px !important; break-inside: avoid;
+          }
+
+          /* Typography */
+          .text-white, .text-gray-200, .text-gray-300 { color: #0f172a !important; }
+          .text-gray-400, .text-gray-500 { color: #374151 !important; }
+          .text-gray-600 { color: #6b7280 !important; }
           .text-emerald-400 { color: #059669 !important; }
-          .text-red-400 { color: #DC2626 !important; }
-          .text-amber-400 { color: #D97706 !important; }
-          .border-gray-700, .border-gray-800 { border-color: #e5e7eb !important; }
-          table { page-break-inside: avoid; }
+          .text-red-400     { color: #dc2626 !important; }
+          .text-amber-400   { color: #d97706 !important; }
+          .text-purple-300, .text-purple-400 { color: #7c3aed !important; }
+
+          /* Tables */
+          table { width: 100% !important; border-collapse: collapse !important; page-break-inside: avoid; }
+          th, td { padding: 4pt 6pt !important; font-size: 8pt !important; }
+          thead tr { border-bottom: 1.5pt solid #8B18E8 !important; }
+          tbody tr { border-bottom: 0.5pt solid #f3f4f6 !important; }
+
+          /* Borders */
+          [class*="border-gray-700"], [class*="border-gray-800"] { border-color: #e5e7eb !important; }
+          .border-hexa-purple, [class*="border-t-2"] { border-color: #8B18E8 !important; }
+
+          /* Gradient backgrounds — convert to solid purple tint */
+          [class*="bg-hexa-gradient"], .tab-pill-active { background: #8B18E8 !important; }
+
+          /* Print header (shown only in print) */
+          .print-report-header { display: flex !important; }
+
+          /* Section accent bars */
+          .section-accent-bar { background: #8B18E8 !important; height: 3pt !important; }
+
+          /* Insights */
+          .alert-critical { background: #fef2f2 !important; border-color: #fca5a5 !important; color: #b91c1c !important; }
+          .alert-warning  { background: #fffbeb !important; border-color: #fcd34d !important; color: #92400e !important; }
+          .alert-good     { background: #ecfdf5 !important; border-color: #6ee7b7 !important; color: #065f46 !important; }
         }
       `}</style>
 
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
 
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-4 bg-white/70 backdrop-blur-xl rounded-2xl border border-black/[0.06] p-5 shadow-sm">
           <div>
-            <h1 className="text-2xl font-bold text-white">Financial Statements</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              {periodLabel} · Consolidated in MYR at BNM rates · IAS 21 compliant
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-6 rounded-full bg-hexa-gradient" />
+              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Financial Statements</h1>
+            </div>
+            <p className="text-sm text-gray-500 ml-4">
+              {periodLabel} · Consolidated in MYR · IAS 21 compliant
             </p>
           </div>
           <div className="flex items-center gap-2 print:hidden">
             {lastRefreshed && (
-              <span className="text-xs text-gray-600">
-                Updated {new Date(lastRefreshed).toLocaleTimeString()}
-              </span>
+              <span className="text-xs text-gray-400">Updated {new Date(lastRefreshed).toLocaleTimeString()}</span>
             )}
             <button onClick={() => fetchData(activeTab, true)}
-              className="px-3 py-1.5 rounded text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 transition">
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-gray-900 border border-black/[0.08] bg-white/80 hover:bg-white transition">
               ↻ Refresh
             </button>
             <button onClick={handlePrint}
-              className="px-3 py-1.5 rounded text-xs font-medium text-white bg-hexa-gradient hover:opacity-90 transition">
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-hexa-gradient hover:opacity-90 transition shadow-sm">
               ⤓ Download PDF
             </button>
           </div>
@@ -1110,7 +1196,7 @@ export function FinancialsClient() {
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
               view === 'consolidated'
                 ? 'bg-hexa-gradient text-white'
-                : 'bg-gray-800 text-gray-400 hover:text-white'
+                : 'bg-white/70 border border-black/[0.07] text-gray-600 hover:text-gray-900'
             }`}>
             Group Consolidated (MYR)
           </button>
@@ -1119,7 +1205,7 @@ export function FinancialsClient() {
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
                 view === org.id
                   ? 'text-white'
-                  : 'bg-gray-800 text-gray-400 hover:text-white'
+                  : 'bg-white/70 border border-black/[0.07] text-gray-600 hover:text-gray-900'
               }`}
               style={view === org.id ? { backgroundColor: ENTITY_COLORS[i % ENTITY_COLORS.length] } : {}}>
               {org.short}
@@ -1128,27 +1214,41 @@ export function FinancialsClient() {
         </div>
 
         {/* Statement Tabs */}
-        <div className="flex gap-0 border-b border-gray-800 print:hidden">
-          {([['pl','P&L Statement'],['bs','Balance Sheet'],['cf','Cash Flow']] as const).map(([tab, label]) => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2.5 text-sm font-medium border-b-2 transition ${
-                activeTab === tab
-                  ? 'border-purple-500 text-purple-400'
-                  : 'border-transparent text-gray-500 hover:text-gray-300'
+        <div className="flex gap-1.5 p-1.5 bg-black/[0.04] rounded-xl print:hidden">
+          {(['pl','bs','cf'] as TabType[]).map((t) => (
+            <button key={t} onClick={() => setActiveTab(t)}
+              className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all ${
+                activeTab === t
+                  ? 'bg-white shadow-sm text-gray-900 border border-black/[0.06]'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}>
-              {label}
+              {t === 'pl' ? 'Profit & Loss' : t === 'bs' ? 'Balance Sheet' : 'Cash Flow'}
             </button>
           ))}
         </div>
 
         {/* Print header */}
-        <div className="hidden print:block mb-6">
-          <h2 className="text-xl font-bold">{periodLabel} Financial Statements</h2>
-          <p className="text-sm text-gray-500">
-            Hexamatics Group · Generated {new Date().toLocaleDateString()} ·
-            {view === 'consolidated' ? ' Group Consolidated (MYR)' : ` ${ORGS.find((o) => o.id === view)?.name}`}
-          </p>
-          <p className="text-xs text-gray-500">FX rates sourced from Bank Negara Malaysia · IAS 21 compliant</p>
+        <div className="hidden print:block mb-8">
+          <div className="flex items-start justify-between border-b-2 border-hexa-purple pb-4 mb-4">
+            <div>
+              <p className="text-xs font-bold text-hexa-purple uppercase tracking-widest mb-1">Hexamatics Group</p>
+              <h2 className="text-2xl font-bold text-gray-900">
+                {activeTab === 'pl' ? 'Profit & Loss Statement' : activeTab === 'bs' ? 'Balance Sheet' : 'Cash Flow Statement'}
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                {view === 'consolidated' ? 'Group Consolidated (MYR)' : ORGS.find((o) => o.id === view)?.name ?? view}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-semibold text-gray-900">{periodLabel}</p>
+              {compLabel && <p className="text-xs text-gray-500">Comparison: {compLabel}</p>}
+              <p className="text-xs text-gray-500 mt-1">Generated {new Date().toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>FX rates sourced from Bank Negara Malaysia · IAS 21 compliant · All amounts in MYR unless stated</span>
+            <span className="font-semibold text-gray-700 uppercase tracking-wide">Confidential — Management Use Only</span>
+          </div>
         </div>
 
         {/* Error */}

@@ -39,6 +39,7 @@ export type PeriodMode =
   | 'year'       // full calendar year
   | 'ytd'        // Jan to current/last month
   | 'rolling12'  // trailing 12 months
+  | 'custom'     // arbitrary date range
 
 export type ComparisonMode =
   | 'previous'   // immediately preceding period
@@ -52,6 +53,8 @@ export interface PeriodDef {
   quarter?: 1 | 2 | 3 | 4 // (mode='quarter')
   half?: 1 | 2             // (mode='half')
   comparison?: ComparisonMode
+  customFrom?: string      // ISO date string (mode='custom')
+  customTo?: string        // ISO date string (mode='custom')
 }
 
 // ─── Financial data types ─────────────────────────────────────────────────────

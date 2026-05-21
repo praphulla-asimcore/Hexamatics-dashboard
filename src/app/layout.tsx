@@ -18,7 +18,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} antialiased`}>
         <ThemeProvider>
-          <SessionProvider>{children}</SessionProvider>
+          {/* Ambient background — light mode only, hidden via CSS in dark mode */}
+          <div className="light-bg-layer" aria-hidden="true">
+            <div className="light-orb light-orb-purple" />
+            <div className="light-orb light-orb-magenta" />
+            <div className="light-orb light-orb-teal" />
+            <div className="light-hex-grid" />
+          </div>
+          <div className="relative z-[1]">
+            <SessionProvider>{children}</SessionProvider>
+          </div>
         </ThemeProvider>
       </body>
     </html>

@@ -25,8 +25,10 @@ export async function GET(req: NextRequest) {
       : undefined
     const comparison = (searchParams.get('comparison') || 'previous') as ComparisonMode
     const forceRefresh = searchParams.get('refresh') === 'true'
+    const customFrom = searchParams.get('customFrom') ?? undefined
+    const customTo = searchParams.get('customTo') ?? undefined
 
-    const period: PeriodDef = { mode, year, month, quarter, half, comparison }
+    const period: PeriodDef = { mode, year, month, quarter, half, comparison, customFrom, customTo }
     const data = await getCachedDashboard(period, forceRefresh)
 
     return NextResponse.json(data, {

@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useSession, signOut } from 'next-auth/react'
-import { ThemeToggle } from '@/components/ThemeProvider'
 import type { DashboardData, PeriodDef, AnnualYearData } from '@/types'
 import {
   fmtMyr, fmtLocal, fmtPct, fmtChange, fmtDays,
@@ -201,61 +200,60 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
   }
 
   const alertColors: Record<AlertLevel, string> = {
-    critical: 'border-red-800 bg-red-950/30 text-red-300',
-    warning: 'border-amber-800 bg-amber-950/30 text-amber-300',
-    good: 'border-emerald-800 bg-emerald-950/30 text-emerald-300',
-    info: 'border-gray-700 bg-gray-800/30 text-gray-300',
+    critical: 'alert-critical',
+    warning:  'alert-warning',
+    good:     'alert-good',
+    info:     'alert-info',
   }
   const alertIcons: Record<AlertLevel, string> = {
     critical: '⚠',
-    warning: '▲',
-    good: '✓',
-    info: 'ℹ',
+    warning:  '▲',
+    good:     '✓',
+    info:     'ℹ',
   }
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
 
       {/* ── Header ────────────────────────────────────────────────── */}
-      <header className="bg-gray-900 border-b border-gray-800 sticky top-0 z-20">
+      <header className="bg-white/70 backdrop-blur-2xl border-b border-black/[0.07] sticky top-0 z-20">
         <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <HexaLogo className="h-7" />
             <div className="flex items-center gap-0.5 ml-2">
               <a href="/dashboard"
-                className="px-3 py-1.5 rounded-md text-sm font-medium bg-gray-800 text-white">
+                className="px-3 py-1.5 rounded-md text-sm font-medium bg-black/[0.06] text-gray-900">
                 AR Dashboard
               </a>
               <a href="/financials"
-                className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/60 transition">
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition">
                 Financial Statements
               </a>
               <a href="/executive"
-                className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800/60 transition">
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-black/[0.04] transition">
                 Executive Summary
               </a>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <span className="hidden md:block text-xs text-gray-600">
+            <span className="hidden md:block text-xs text-gray-500">
               {session?.user?.name ?? session?.user?.email}
             </span>
             <button
               onClick={() => fetchData({ ...period })}
               disabled={loading}
-              className="text-xs border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 px-3 py-1.5 rounded-lg transition disabled:opacity-40"
+              className="text-xs border border-black/[0.10] text-gray-500 hover:text-gray-900 hover:border-black/[0.20] px-3 py-1.5 rounded-lg transition disabled:opacity-40"
             >
               {loading ? 'Loading…' : '⟳ Refresh'}
             </button>
             {(session?.user as any)?.role === 'admin' && (
-              <a href="/admin/users" className="text-xs border border-gray-700 text-gray-400 hover:text-white hover:border-gray-600 px-3 py-1.5 rounded-lg transition">
+              <a href="/admin/users" className="text-xs border border-black/[0.10] text-gray-500 hover:text-gray-900 hover:border-black/[0.20] px-3 py-1.5 rounded-lg transition">
                 Users
               </a>
             )}
             <button
               onClick={() => signOut({ callbackUrl: '/login' })}
-              className="text-xs text-gray-500 hover:text-gray-300 transition"
+              className="text-xs text-gray-500 hover:text-gray-700 transition"
             >
               Sign out
             </button>
@@ -334,22 +332,18 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
         </div>
 
         {/* ── Tab navigation ────────────────────────────────────────── */}
-        <div className="border-b border-gray-800">
-          <nav className="flex gap-0 -mb-px overflow-x-auto">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === tab.key
-                    ? 'border-hexa-purple text-white'
-                    : 'border-transparent text-gray-500 hover:text-gray-300 hover:border-gray-600'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+        <div className="flex gap-1.5 p-1.5 bg-black/[0.04] rounded-xl overflow-x-auto">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
+                activeTab === tab.key ? 'tab-pill-active' : 'tab-pill-inactive'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* ─────────────────────────────────────────────────────────── */}
@@ -477,7 +471,7 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
                         <p className="text-xs text-gray-500">{label}</p>
                         <p className="text-xs text-gray-400">{detail}</p>
                       </div>
-                      <span className={`text-2xl font-black tabular-nums ${color}`}>{score}</span>
+                      <span className={`grade-badge ${color}`}>{score}</span>
                     </div>
                   ))}
                 </div>
@@ -549,7 +543,7 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
                     ? ((e.period.totalMyr - e.comparison.totalMyr) / e.comparison.totalMyr) * 100
                     : null
                   return (
-                    <div key={e.org.id} className="p-3 rounded-xl bg-gray-800/60 border border-gray-700/50">
+                    <div key={e.org.id} className="entity-mini-card p-3">
                       <div className="flex items-center gap-1.5 mb-2">
                         <span className="w-2 h-2 rounded-full flex-shrink-0"
                           style={{ background: ENTITY_COLORS[entities.indexOf(e) % ENTITY_COLORS.length] }} />
