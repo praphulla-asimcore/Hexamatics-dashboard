@@ -1263,7 +1263,6 @@ export function FinancialsClient() {
 
     setLoading(true)
     setError(null)
-    setLoadedCount(0)
 
     const endpoint = tab === 'pl' ? 'pl' : tab === 'bs' ? 'bs' : 'cf'
 
