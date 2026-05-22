@@ -4,16 +4,11 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import type { DashboardData, PeriodDef } from '@/types'
 import type {
   ConsolidatedPL, ConsolidatedBS, ConsolidatedCF, CFOInsight,
-  PLStatement, BalanceSheetStatement, CashFlowStatement,
 } from '@/types/financials'
-import { ORGS } from '@/lib/orgs'
 import { fmtMyr, dsoColor } from '@/lib/format'
 import {
   variance, varianceLabel, insightColor, insightIcon,
-  buildConsolidatedPL, buildConsolidatedBS, buildConsolidatedCF,
-  generatePLInsights, generateBSInsights, generateCFInsights,
 } from '@/lib/financial-analytics'
-import { getFinancialPeriodLabel } from '@/lib/zoho-reports'
 import { KpiCard } from './KpiCard'
 import { NavBar } from './NavBar'
 import { PeriodSelector } from './PeriodSelector'
@@ -109,7 +104,6 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
   const [data, setData]   = useState<DashboardData>(initialData)
   const [period, setPeriod] = useState<PeriodDef>(initialPeriod)
   const [loading, setLoading] = useState(false)
-  const [loadedCount, setLoadedCount] = useState(0)
   const [plData, setPlData] = useState<{ consolidated: ConsolidatedPL; insights: CFOInsight[] } | null>(null)
   const [bsData, setBsData] = useState<{ consolidated: ConsolidatedBS; insights: CFOInsight[] } | null>(null)
   const [cfData, setCfData] = useState<{ consolidated: ConsolidatedCF; insights: CFOInsight[] } | null>(null)
@@ -122,7 +116,6 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
     abortRef.current = ctrl
 
     setLoading(true)
-    setLoadedCount(0)
     setPlData(null); setBsData(null); setCfData(null)
 
     const arP  = buildArParams(p)
@@ -139,71 +132,31 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
 
     if (ctrl.signal.aborted) return
 
-    // Financial data — all orgs in parallel, PL+BS+CF per org also in parallel.
-    // State is updated progressively as each org resolves (fastest-first).
-    const plStmts: PLStatement[] = []
-    const bsStmts: BalanceSheetStatement[] = []
-    const cfStmts: CashFlowStatement[] = []
-
-    const finLabel = getFinancialPeriodLabel({
-      mode: (finP.get('mode') ?? 'year') as any,
-      year: p.year, month: p.month, quarter: p.quarter, half: p.half,
-      comparison: (p.comparison ?? 'previous') as any,
-      customFrom: finP.get('customFrom') ?? undefined,
-      customTo:   finP.get('customTo')   ?? undefined,
-    })
-
-    const orgPromises = ORGS.map(async (org) => {
+    // Financial data — single server-consolidated call per statement type.
+    // The API fetches all orgs sequentially in one Lambda instance (no concurrent
+    // token refreshes) and caches the result for 4 hours. Both this page and
+    // Financial Statements hit the same cached response → identical PAT figures.
+    try {
+      const [plRes, bsRes, cfRes] = await Promise.all([
+        fetch(`/api/financials/pl?${finP}`, { signal: ctrl.signal }),
+        fetch(`/api/financials/bs?${finP}`, { signal: ctrl.signal }),
+        fetch(`/api/financials/cf?${finP}`, { signal: ctrl.signal }),
+      ])
       if (ctrl.signal.aborted) return
-      const ep = new URLSearchParams(finP)
-      ep.set('orgId', org.id)
 
-      try {
-        const [plRes, bsRes, cfRes] = await Promise.all([
-          fetch(`/api/financials/pl?${ep}`, { signal: ctrl.signal }),
-          fetch(`/api/financials/bs?${ep}`, { signal: ctrl.signal }),
-          fetch(`/api/financials/cf?${ep}`, { signal: ctrl.signal }),
-        ])
-        if (ctrl.signal.aborted) return
+      const [plJson, bsJson, cfJson] = await Promise.all([
+        plRes.ok ? plRes.json() : Promise.resolve({}),
+        bsRes.ok ? bsRes.json() : Promise.resolve({}),
+        cfRes.ok ? cfRes.json() : Promise.resolve({}),
+      ])
+      if (ctrl.signal.aborted) return
 
-        const [plJson, bsJson, cfJson] = await Promise.all([
-          plRes.ok ? plRes.json() : Promise.resolve({}),
-          bsRes.ok ? bsRes.json() : Promise.resolve({}),
-          cfRes.ok ? cfRes.json() : Promise.resolve({}),
-        ])
-        if (ctrl.signal.aborted) return
-
-        if (plJson.statement) plStmts.push(plJson.statement)
-        if (bsJson.statement) bsStmts.push(bsJson.statement)
-        if (cfJson.statement) cfStmts.push(cfJson.statement)
-      } catch (err: any) {
-        if (err.name === 'AbortError') return
-        const stub: any = {
-          orgId: org.id, orgShort: org.short, currency: org.currency,
-          fxRate: org.fxToMyr ?? 1, error: err.message,
-          data: {}, dateRange: { from: '', to: '' }, asOfDate: '',
-        }
-        plStmts.push(stub); bsStmts.push(stub); cfStmts.push(stub)
-      }
-
-      if (!ctrl.signal.aborted) {
-        setLoadedCount(prev => prev + 1)
-        if (plStmts.length) {
-          const c = buildConsolidatedPL(plStmts, finLabel)
-          setPlData({ consolidated: c, insights: generatePLInsights(c) })
-        }
-        if (bsStmts.length) {
-          const c = buildConsolidatedBS(bsStmts, bsStmts[0]?.asOfDate ?? '')
-          setBsData({ consolidated: c, insights: generateBSInsights(c) })
-        }
-        if (cfStmts.length) {
-          const c = buildConsolidatedCF(cfStmts)
-          setCfData({ consolidated: c, insights: generateCFInsights(c) })
-        }
-      }
-    })
-
-    await Promise.allSettled(orgPromises)
+      if (plJson.consolidated) setPlData({ consolidated: plJson.consolidated, insights: plJson.insights ?? [] })
+      if (bsJson.consolidated) setBsData({ consolidated: bsJson.consolidated, insights: bsJson.insights ?? [] })
+      if (cfJson.consolidated) setCfData({ consolidated: cfJson.consolidated, insights: cfJson.insights ?? [] })
+    } catch (err: any) {
+      if (err.name === 'AbortError') return
+    }
 
     if (!ctrl.signal.aborted) setLoading(false)
   }, [])
@@ -392,7 +345,7 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
             <button
               onClick={() => window.print()}
               disabled={loading}
-              title={loading ? `Loading data… (${loadedCount} of ${ORGS.length} entities)` : undefined}
+              title={loading ? 'Loading financial data — please wait before printing' : undefined}
               className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition
                 ${loading
                   ? 'border-gray-800 text-gray-600 cursor-not-allowed'
@@ -400,7 +353,7 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
                 }`}
             >
               <span>⎙</span>
-              {loading ? `Loading… ${loadedCount}/${ORGS.length}` : 'Print / Export PDF'}
+              {loading ? 'Loading…' : 'Print / Export PDF'}
             </button>
           </div>
           <PeriodSelector value={period} onChange={handlePeriodChange} loading={loading} />
