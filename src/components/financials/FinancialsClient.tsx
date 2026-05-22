@@ -432,7 +432,7 @@ function getLeafItems(items: FSLineItem[]): FSLineItem[] {
 function InsightsPanel({ insights }: { insights: CFOInsight[] }) {
   if (!insights.length) return null
   return (
-    <div className="space-y-2">
+    <div className="insights-panel space-y-2">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">CFO Insights</h3>
       {insights.map((ins, i) => (
         <div key={i} className={`rounded-lg border p-3 ${insightColor(ins.level)}`}>
@@ -820,25 +820,16 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
       </div>
 
       {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-800">Revenue, GP & Net Profit by Entity</h3>
-            <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">MYR</span>
-          </div>
-          <Bar data={barData} options={CHART_OPTIONS} height={200} />
+      <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold text-gray-800">Revenue, GP & Net Profit by Entity</h3>
+          <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">MYR</span>
         </div>
-        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-gray-800 mb-4">Revenue Mix</h3>
-          <Doughnut data={donutData} options={DONUT_OPTIONS} />
-          <p className="text-center text-xs text-gray-500 mt-3 font-medium">
-            Total: {fmtCurrency(g.totalRevenueMyr)}
-          </p>
-        </div>
+        <Bar data={barData} options={CHART_OPTIONS} height={120} />
       </div>
 
       {/* P&L Cascade */}
-      <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+      <div className="pl-cascade bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
         <div className="section-accent-bar" />
         <div className="p-5">
           <div className="flex items-center justify-between mb-5">
@@ -1176,7 +1167,7 @@ function ConsolidatedCFView({ data, insights }: { data: ConsolidatedCF; insights
         <KpiCard label="Free Cash Flow" value={fmtCurrency(g.freeCashFlowMyr)} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="chart-grid grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Cascade */}
         <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
           <div className="section-accent-bar" />
@@ -1456,7 +1447,13 @@ export function FinancialsClient() {
           .px-4, .px-6, .sm\\:px-6 { padding-left: 0 !important; padding-right: 0 !important; }
 
           /* ── Page break control ──────────────────────────────────────── */
-          .space-y-5 > *, .space-y-6 > * { break-inside: avoid; margin-bottom: 10pt; }
+          /* Small atomic elements + named sections that must stay whole */
+          .kpi-card,
+          .alert-critical, .alert-warning, .alert-good, .alert-info,
+          .entity-mini-card { break-inside: avoid; }
+          .pl-cascade { break-inside: avoid; }
+          .insights-panel { break-inside: avoid; break-before: avoid; }
+          .space-y-5 > * + *, .space-y-6 > * + * { margin-top: 8pt; }
 
           /* ── Glass containers → flat white with border ───────────────── */
           [class*="bg-white\\/"],
@@ -1527,9 +1524,10 @@ export function FinancialsClient() {
           table {
             width: 100% !important;
             border-collapse: collapse !important;
-            break-inside: avoid;
             font-size: 8pt !important;
           }
+          thead { display: table-header-group; }
+          tr { break-inside: avoid; }
           th {
             padding: 3pt 5pt 3pt 5pt !important;
             font-size: 7pt !important;
@@ -1583,11 +1581,12 @@ export function FinancialsClient() {
           /* ── Hover states — reset ────────────────────────────────────── */
           [class*="hover\\:bg-"] { background: transparent !important; }
 
-          /* ── Insight/alert banners ───────────────────────────────────── */
-          .alert-critical { background: #fef2f2 !important; border-color: #fca5a5 !important; color: #b91c1c !important; }
-          .alert-warning  { background: #fffbeb !important; border-color: #fcd34d !important; color: #92400e !important; }
-          .alert-good     { background: #ecfdf5 !important; border-color: #6ee7b7 !important; color: #065f46 !important; }
-          .alert-info     { background: #eff6ff !important; border-color: #93c5fd !important; color: #1e40af !important; }
+          /* ── Insight/alert banners — saturated for print legibility ─── */
+          .alert-critical { background: #fee2e2 !important; border: 0.6pt solid #f87171 !important; color: #991b1b !important; }
+          .alert-warning  { background: #fef3c7 !important; border: 0.6pt solid #f59e0b !important; color: #78350f !important; }
+          .alert-good     { background: #d1fae5 !important; border: 0.6pt solid #34d399 !important; color: #064e3b !important; }
+          .alert-info     { background: #dbeafe !important; border: 0.6pt solid #60a5fa !important; color: #1e3a8a !important; }
+          .alert-critical *, .alert-warning *, .alert-good *, .alert-info * { color: inherit !important; }
 
           /* Insight panel items */
           [class*="rounded-lg border p-3"],
@@ -1614,15 +1613,28 @@ export function FinancialsClient() {
           /* ── Grid layouts ────────────────────────────────────────────── */
           .grid { display: grid !important; }
           .grid-cols-2 { grid-template-columns: repeat(2, 1fr) !important; }
-          .lg\\:grid-cols-4, .lg\\:grid-cols-3 { grid-template-columns: repeat(4, 1fr) !important; }
+          .lg\\:grid-cols-2 { grid-template-columns: repeat(2, 1fr) !important; }
+          .lg\\:grid-cols-4 { grid-template-columns: repeat(4, 1fr) !important; }
           .lg\\:col-span-2 { grid-column: span 2 !important; }
+
+          /* ── Chart grids: single column + height cap ─────────────────── */
+          .chart-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .chart-grid > * {
+            grid-column: 1 !important;
+          }
+          .chart-grid canvas {
+            max-height: 160pt !important;
+            width: 100% !important;
+          }
         }
       `}</style>
 
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
 
         {/* Header */}
-        <div className="flex flex-wrap items-start justify-between gap-4 bg-white/70 backdrop-blur-xl rounded-2xl border border-black/[0.06] p-5 shadow-sm">
+        <div className="print:hidden flex flex-wrap items-start justify-between gap-4 bg-white/70 backdrop-blur-xl rounded-2xl border border-black/[0.06] p-5 shadow-sm">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="w-2 h-6 rounded-full bg-hexa-gradient" />
@@ -1648,7 +1660,7 @@ export function FinancialsClient() {
         </div>
 
         {/* Period Selector */}
-        <PeriodSelector period={period} onChange={handlePeriodChange} />
+        <div className="print:hidden"><PeriodSelector period={period} onChange={handlePeriodChange} /></div>
 
         {/* Entity Selector */}
         <div className="flex flex-wrap gap-1.5 print:hidden">

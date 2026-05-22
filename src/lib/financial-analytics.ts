@@ -373,10 +373,10 @@ export function varianceLabel(pct: number): string {
 
 export function insightColor(level: InsightLevel): string {
   switch (level) {
-    case 'critical': return 'text-red-400 bg-red-950/40 border-red-900'
-    case 'warning':  return 'text-amber-400 bg-amber-950/40 border-amber-900'
-    case 'positive': return 'text-emerald-400 bg-emerald-950/40 border-emerald-900'
-    case 'info':     return 'text-blue-400 bg-blue-950/40 border-blue-900'
+    case 'critical': return 'alert-critical'
+    case 'warning':  return 'alert-warning'
+    case 'positive': return 'alert-good'
+    case 'info':     return 'alert-info'
   }
 }
 

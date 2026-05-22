@@ -391,9 +391,16 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
             </div>
             <button
               onClick={() => window.print()}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 transition"
+              disabled={loading}
+              title={loading ? `Loading data… (${loadedCount} of ${ORGS.length} entities)` : undefined}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition
+                ${loading
+                  ? 'border-gray-800 text-gray-600 cursor-not-allowed'
+                  : 'border-gray-700 text-gray-300 hover:text-white hover:border-gray-500'
+                }`}
             >
-              <span>⎙</span> Print / Export PDF
+              <span>⎙</span>
+              {loading ? `Loading… ${loadedCount}/${ORGS.length}` : 'Print / Export PDF'}
             </button>
           </div>
           <PeriodSelector value={period} onChange={handlePeriodChange} loading={loading} />

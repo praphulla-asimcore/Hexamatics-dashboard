@@ -36,6 +36,8 @@ function periodKey(period: FinancialPeriod): string {
     period.quarter ?? '',
     period.half ?? '',
     period.comparison,
+    period.customFrom ?? '',
+    period.customTo ?? '',
   ].join('_')
 }
 
