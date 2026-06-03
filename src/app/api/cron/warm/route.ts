@@ -1,11 +1,11 @@
 /**
- * Cache warm-up cron job — called every 3 hours by Vercel Cron.
+ * Cache warm-up cron job — called daily by Vercel Cron.
  *
- * Fetches PL, BS, CF for all 9 orgs and writes to Vercel KV so that
- * every user Lambda instance sees a warm cache on arrival.
+ * Fetches PL, BS, CF for all 9 orgs and writes to PostgreSQL (DigitalOcean)
+ * so that every user Lambda instance sees a warm cache on arrival.
  *
  * Setup:
- *   1. Vercel dashboard → Storage → Create KV Store → Connect to this project
+ *   1. Add DATABASE_URL to Vercel env vars (see pg.ts for format)
  *   2. Add env var CRON_SECRET (any random string, e.g. openssl rand -hex 32)
  *   3. Set the same CRON_SECRET in Vercel project settings → Environment Variables
  */
@@ -13,6 +13,7 @@
 import { NextResponse } from 'next/server'
 import { getCachedAllPL, getCachedAllBS, getCachedAllCF } from '@/lib/financial-cache'
 import { getCachedDashboard } from '@/lib/cache'
+import { pgPurgeExpired } from '@/lib/pg-cache'
 import type { FinancialPeriod } from '@/types/financials'
 import type { PeriodDef } from '@/types'
 
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
       getCachedAllBS(finPeriod, true),
       getCachedAllCF(finPeriod, true),
       getCachedDashboard(arPeriod, true),
+      pgPurgeExpired(), // clean up expired rows while we're here
     ])
 
     return NextResponse.json({
