@@ -11,15 +11,6 @@
 
 import { getPool } from './pg'
 
-const CREATE_TABLE = `
-  CREATE TABLE IF NOT EXISTS cache_store (
-    key        TEXT        PRIMARY KEY,
-    value      JSONB       NOT NULL,
-    expires_at TIMESTAMPTZ NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache_store (expires_at);
-`
-
 let tableReady = false
 
 async function ensureTable(): Promise<boolean> {
@@ -27,7 +18,18 @@ async function ensureTable(): Promise<boolean> {
   const pool = getPool()
   if (!pool) return false
   try {
-    await pool.query(CREATE_TABLE)
+    // Run as separate queries — PgBouncer transaction mode rejects
+    // multiple statements in a single pool.query() call
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS cache_store (
+        key        TEXT        PRIMARY KEY,
+        value      JSONB       NOT NULL,
+        expires_at TIMESTAMPTZ NOT NULL
+      )
+    `)
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache_store (expires_at)
+    `)
     tableReady = true
     return true
   } catch (err: any) {
