@@ -303,22 +303,31 @@ function buildMonthlyTrend(invoices: ZohoInvoice[], fxToMyr: number): MonthDataP
 
 // ─── Per-entity fetch ─────────────────────────────────────────────────────────
 
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function classifyInvoices(invs: ZohoInvoice[]) {
+  return {
+    thirdParty: invs.filter((inv) => getCustomerType(inv.customer_name) === 'third-party'),
+    interco:    invs.filter((inv) => getCustomerType(inv.customer_name) === 'interco'),
+    rpt:        invs.filter((inv) => getCustomerType(inv.customer_name) === 'rpt'),
+  }
+}
+
+// Main per-entity fetch — period + comparison only (NO trend).
+// Trend is fetched separately via fetchDashboardTrend to keep this fast.
 async function fetchEntityData(
   org: OrgConfig,
   periodRange: { from: string; to: string },
   comparisonRange: { from: string; to: string } | null,
-  trendRange: { from: string; to: string },
   daysInPeriod: number
 ): Promise<EntitySummary> {
   const wideFrom = [
     periodRange.from,
     comparisonRange?.from ?? periodRange.from,
-    trendRange.from,
   ].sort()[0]
   const wideTo = [
     periodRange.to,
     comparisonRange?.to ?? periodRange.to,
-    trendRange.to,
   ].sort().reverse()[0]
 
   let allInvoices: ZohoInvoice[] = []
@@ -328,38 +337,38 @@ async function fetchEntityData(
     console.error(`Failed to fetch ${org.name}:`, err)
   }
 
-  // Split all fetched invoices by customer type
-  const byType = (invs: ZohoInvoice[]) => ({
-    thirdParty: invs.filter((inv) => getCustomerType(inv.customer_name) === 'third-party'),
-    interco:    invs.filter((inv) => getCustomerType(inv.customer_name) === 'interco'),
-    rpt:        invs.filter((inv) => getCustomerType(inv.customer_name) === 'rpt'),
-  })
-
-  const period3P = byType(allInvoices.filter(
-    (inv) => inv.date >= periodRange.from && inv.date <= periodRange.to
-  ))
+  const period3P = classifyInvoices(
+    allInvoices.filter((inv) => inv.date >= periodRange.from && inv.date <= periodRange.to)
+  )
   const comp3P = comparisonRange
-    ? byType(allInvoices.filter((inv) => inv.date >= comparisonRange.from && inv.date <= comparisonRange.to))
+    ? classifyInvoices(
+        allInvoices.filter((inv) => inv.date >= comparisonRange.from && inv.date <= comparisonRange.to)
+      )
     : null
-  const trend3P = byType(allInvoices.filter(
-    (inv) => inv.date >= trendRange.from && inv.date <= trendRange.to
-  ))
 
-  // Main metrics use Third Party only
-  const period      = buildPeriodSummary(period3P.thirdParty, org.fxToMyr)
-  const comparison  = comp3P ? buildPeriodSummary(comp3P.thirdParty, org.fxToMyr) : undefined
-  const arAging     = buildArAging(period3P.thirdParty)
+  const period       = buildPeriodSummary(period3P.thirdParty, org.fxToMyr)
+  const comparison   = comp3P ? buildPeriodSummary(comp3P.thirdParty, org.fxToMyr) : undefined
+  const arAging      = buildArAging(period3P.thirdParty)
   const topCustomers = buildTopCustomers(period3P.thirdParty)
-  const ratios      = buildRatios(period, arAging, topCustomers, daysInPeriod)
-  const monthlyTrend = buildMonthlyTrend(trend3P.thirdParty, org.fxToMyr)
+  const ratios       = buildRatios(period, arAging, topCustomers, daysInPeriod)
+  const interco      = period3P.interco.length > 0 ? buildSegmentSummary(period3P.interco, org.fxToMyr) : undefined
+  const rpt          = period3P.rpt.length > 0     ? buildSegmentSummary(period3P.rpt,     org.fxToMyr) : undefined
 
-  // Interco and RPT segments
-  const interco = period3P.interco.length > 0
-    ? buildSegmentSummary(period3P.interco, org.fxToMyr) : undefined
-  const rpt = period3P.rpt.length > 0
-    ? buildSegmentSummary(period3P.rpt, org.fxToMyr) : undefined
+  return { org, period, comparison, arAging, topCustomers, ratios, monthlyTrend: [], interco, rpt }
+}
 
-  return { org, period, comparison, arAging, topCustomers, ratios, monthlyTrend, interco, rpt }
+// Separate trend fetch per entity — called after main dashboard renders.
+async function fetchEntityTrend(
+  org: OrgConfig,
+  trendRange: { from: string; to: string }
+): Promise<MonthDataPoint[]> {
+  try {
+    const invoices = await fetchOrgInvoices(org.id, trendRange.from, trendRange.to)
+    const thirdParty = invoices.filter((inv) => getCustomerType(inv.customer_name) === 'third-party')
+    return buildMonthlyTrend(thirdParty, org.fxToMyr)
+  } catch {
+    return []
+  }
 }
 
 // ─── Main dashboard fetch ─────────────────────────────────────────────────────
@@ -380,14 +389,13 @@ export async function fetchDashboard(
     }
   }
 
-  const trendRange = getLast12MonthsRange(period)
-
   const fromDate = new Date(periodRange.from)
   const toDate = new Date(periodRange.to)
   const daysInPeriod = differenceInDays(toDate, fromDate) + 1
 
+  // Main fetch: period + comparison only. Trend is loaded separately (lazy).
   const entities = await Promise.all(
-    ORGS.map((org) => fetchEntityData(org, periodRange, comparisonRange, trendRange, daysInPeriod))
+    ORGS.map((org) => fetchEntityData(org, periodRange, comparisonRange, daysInPeriod))
   )
 
   const sumMyr = (fn: (e: EntitySummary) => number) =>
@@ -452,6 +460,18 @@ export async function fetchDashboard(
     lastRefreshed: new Date().toISOString(),
     dateRange: periodRange,
   }
+}
+
+// ─── Trend-only fetch (called lazily after main dashboard) ───────────────────
+
+export async function fetchDashboardTrend(
+  period: PeriodDef
+): Promise<MonthDataPoint[][]> {
+  const trendRange = getLast12MonthsRange(period)
+  const results = await Promise.all(
+    ORGS.map((org) => fetchEntityTrend(org, trendRange))
+  )
+  return results
 }
 
 // ─── Annual multi-year fetch ──────────────────────────────────────────────────

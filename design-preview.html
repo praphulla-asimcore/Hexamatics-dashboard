@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HexaInsight — Premium Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#f7f8ff;
+  --surface:#ffffff;
+  --text:#0a0a0f;
+  --text-muted:#6b7280;
+  --border:rgba(0,0,0,0.06);
+  --border-nav:rgba(0,0,0,0.07);
+
+  --purple:#8b18e8;
+  --magenta:#e010c8;
+  --teal:#17b8a5;
+  --blue:#1a6ff4;
+  --gold:#f5b800;
+  --orange:#f56a00;
+
+  --grad-pm:linear-gradient(135deg,#8b18e8,#e010c8);
+  --grad-tb:linear-gradient(135deg,#17b8a5,#1a6ff4);
+  --grad-go:linear-gradient(135deg,#f5b800,#f56a00);
+  --grad-text:linear-gradient(135deg,#8b18e8 0%,#e010c8 100%);
+}
+
+html{scroll-behavior:smooth}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+  position:relative;
+}
+
+/* ── Ambient orbs ─────────────────────────────────────── */
+.orb{
+  position:fixed;
+  border-radius:50%;
+  filter:blur(90px);
+  pointer-events:none;
+  z-index:0;
+}
+.orb-purple{
+  width:520px;height:520px;
+  background:rgba(139,24,232,0.10);
+  top:-120px;left:-80px;
+  animation:drift1 18s ease-in-out infinite alternate;
+}
+.orb-magenta{
+  width:440px;height:440px;
+  background:rgba(224,16,200,0.08);
+  bottom:60px;right:-100px;
+  animation:drift2 22s ease-in-out infinite alternate;
+}
+.orb-teal{
+  width:380px;height:380px;
+  background:rgba(23,184,165,0.07);
+  top:40%;left:55%;
+  animation:drift3 26s ease-in-out infinite alternate;
+}
+
+@keyframes drift1{
+  0%{transform:translate(0,0) scale(1)}
+  100%{transform:translate(60px,80px) scale(1.08)}
+}
+@keyframes drift2{
+  0%{transform:translate(0,0) scale(1)}
+  100%{transform:translate(-70px,-60px) scale(1.12)}
+}
+@keyframes drift3{
+  0%{transform:translate(0,0) scale(1)}
+  100%{transform:translate(50px,-90px) scale(0.94)}
+}
+
+/* ── SVG hex-grid overlay ─────────────────────────────── */
+.hex-grid{
+  position:fixed;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  opacity:0.04;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100'%3E%3Cpath d='M28 2 L54 17 L54 47 L28 62 L2 47 L2 17 Z' fill='none' stroke='%230a0a0f' stroke-width='1'/%3E%3Cpath d='M28 62 L54 77 L54 107 L28 122 L2 107 L2 77 Z' fill='none' stroke='%230a0a0f' stroke-width='1'/%3E%3C/svg%3E");
+  background-size:56px 100px;
+}
+
+/* ── Concentric rotating hex rings ───────────────────── */
+.hex-rings{
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:600px;height:600px;
+  pointer-events:none;
+  z-index:0;
+}
+.ring{
+  position:absolute;
+  inset:0;
+  opacity:0.18;
+}
+.ring-outer{animation:spin-cw 28s linear infinite}
+.ring-inner{animation:spin-ccw 20s linear infinite}
+@keyframes spin-cw{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes spin-ccw{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+
+/* ── Nav ──────────────────────────────────────────────── */
+nav{
+  position:sticky;top:0;z-index:100;
+  background:rgba(255,255,255,0.70);
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--border-nav);
+  padding:0 40px;
+  height:62px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.nav-logo{
+  font-size:18px;font-weight:700;letter-spacing:-0.4px;
+  background:var(--grad-text);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.nav-links{display:flex;gap:32px;list-style:none}
+.nav-links a{
+  font-size:14px;font-weight:500;color:var(--text-muted);
+  text-decoration:none;transition:color .2s;
+}
+.nav-links a:hover{color:var(--text)}
+.nav-links a.active{color:var(--text)}
+.nav-right{display:flex;align-items:center;gap:16px}
+.nav-avatar{
+  width:34px;height:34px;border-radius:50%;
+  background:var(--grad-pm);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:600;color:#fff;
+  cursor:pointer;
+}
+.nav-btn{
+  font-size:13px;font-weight:600;padding:7px 16px;border-radius:8px;
+  background:var(--grad-pm);color:#fff;border:none;cursor:pointer;
+  box-shadow:0 2px 12px rgba(139,24,232,0.25);
+  transition:opacity .2s,box-shadow .2s;
+}
+.nav-btn:hover{opacity:.88;box-shadow:0 4px 18px rgba(139,24,232,0.35)}
+
+/* ── Layout ───────────────────────────────────────────── */
+main{
+  position:relative;z-index:1;
+  max-width:1280px;margin:0 auto;padding:56px 40px 80px;
+}
+
+/* ── Hero ─────────────────────────────────────────────── */
+.hero{
+  position:relative;text-align:center;padding:40px 0 64px;
+  overflow:hidden;
+}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--purple);background:rgba(139,24,232,0.08);
+  border:1px solid rgba(139,24,232,0.18);
+  border-radius:999px;padding:4px 14px;margin-bottom:20px;
+}
+.hero-eyebrow span{width:6px;height:6px;border-radius:50%;background:var(--purple);display:inline-block}
+.hero h1{
+  font-size:clamp(36px,5vw,58px);font-weight:800;letter-spacing:-1.5px;line-height:1.08;
+  background:var(--grad-text);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:16px;
+}
+.hero-sub{
+  font-size:17px;font-weight:400;color:var(--text-muted);
+  max-width:520px;margin:0 auto 36px;line-height:1.65;
+}
+.hero-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btn-primary{
+  font-size:14px;font-weight:600;padding:12px 28px;border-radius:10px;
+  background:var(--grad-pm);color:#fff;border:none;cursor:pointer;
+  box-shadow:0 4px 20px rgba(139,24,232,0.30);
+  transition:transform .2s,box-shadow .2s;
+}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 28px rgba(139,24,232,0.38)}
+.btn-secondary{
+  font-size:14px;font-weight:600;padding:12px 28px;border-radius:10px;
+  background:var(--surface);color:var(--text);
+  border:1px solid var(--border-nav);cursor:pointer;
+  box-shadow:0 2px 8px rgba(0,0,0,0.06);
+  transition:transform .2s,box-shadow .2s;
+}
+.btn-secondary:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,0.10)}
+
+/* ── Stats row ────────────────────────────────────────── */
+.stats{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:20px;
+  margin-bottom:32px;
+}
+
+/* ── Cards ────────────────────────────────────────────── */
+.card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:24px;
+  position:relative;overflow:hidden;
+  box-shadow:0 2px 12px rgba(0,0,0,0.05),0 0 0 0 transparent;
+  transition:transform .55s cubic-bezier(0.23,1,0.32,1),
+             box-shadow .55s cubic-bezier(0.23,1,0.32,1);
+  cursor:default;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  border-radius:18px 18px 0 0;
+}
+.card::after{
+  content:'';
+  position:absolute;inset:0;
+  background:linear-gradient(125deg,rgba(255,255,255,0) 40%,rgba(255,255,255,0.65) 50%,rgba(255,255,255,0) 60%);
+  transform:translateX(-140%) skewX(-12deg);
+  transition:transform .6s cubic-bezier(0.23,1,0.32,1);
+  pointer-events:none;border-radius:18px;
+}
+.card:hover{
+  transform:translateY(-5px);
+  box-shadow:0 12px 36px rgba(0,0,0,0.10),0 2px 8px rgba(0,0,0,0.06);
+}
+.card:hover::after{transform:translateX(140%) skewX(-12deg)}
+
+.card-pm::before{background:var(--grad-pm)}
+.card-tb::before{background:var(--grad-tb)}
+.card-go::before{background:var(--grad-go)}
+.card-pm-rev::before{background:linear-gradient(135deg,#e010c8,#8b18e8)}
+
+/* card entrance animation */
+.card{
+  opacity:0;
+  transform:translateY(36px);
+  animation:card-in .7s cubic-bezier(0.23,1,0.32,1) forwards;
+}
+@keyframes card-in{
+  to{opacity:1;transform:translateY(0)}
+}
+.card:nth-child(1){animation-delay:.05s}
+.card:nth-child(2){animation-delay:.12s}
+.card:nth-child(3){animation-delay:.19s}
+.card:nth-child(4){animation-delay:.26s}
+
+/* stat card specifics */
+.stat-label{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+.stat-value{font-size:30px;font-weight:800;letter-spacing:-1px;line-height:1;margin-bottom:6px}
+.stat-delta{font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:3px 10px}
+.delta-up{background:rgba(23,184,165,0.12);color:#0fa88f}
+.delta-dn{background:rgba(239,68,68,0.10);color:#dc2626}
+.stat-icon{
+  position:absolute;top:20px;right:20px;
+  width:40px;height:40px;border-radius:10px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;
+}
+.icon-pm{background:rgba(139,24,232,0.10)}
+.icon-tb{background:rgba(23,184,165,0.10)}
+.icon-go{background:rgba(245,184,0,0.12)}
+.icon-mg{background:rgba(224,16,200,0.10)}
+
+/* pill tags */
+.pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+.pill{
+  font-size:11px;font-weight:600;letter-spacing:.03em;
+  padding:3px 10px;border-radius:999px;
+}
+.pill-pm{background:rgba(139,24,232,0.12);color:var(--purple)}
+.pill-tb{background:rgba(23,184,165,0.12);color:var(--teal)}
+.pill-go{background:rgba(245,184,0,0.14);color:#c28a00}
+.pill-mg{background:rgba(224,16,200,0.10);color:var(--magenta)}
+.pill-blue{background:rgba(26,111,244,0.10);color:var(--blue)}
+
+/* ── Feature grid ─────────────────────────────────────── */
+.section-label{
+  font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text-muted);margin-bottom:20px;
+}
+.feature-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:20px;
+  margin-bottom:32px;
+}
+.feature-grid .card{padding:28px}
+.feature-icon{
+  width:46px;height:46px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;margin-bottom:18px;
+}
+.fi-pm{background:rgba(139,24,232,0.10);box-shadow:0 0 18px rgba(139,24,232,0.18)}
+.fi-tb{background:rgba(23,184,165,0.10);box-shadow:0 0 18px rgba(23,184,165,0.18)}
+.fi-go{background:rgba(245,184,0,0.12);box-shadow:0 0 18px rgba(245,184,0,0.20)}
+.feature-title{font-size:15px;font-weight:700;margin-bottom:7px;letter-spacing:-.2px}
+.feature-desc{font-size:13px;color:var(--text-muted);line-height:1.6}
+
+/* ── Activity card ────────────────────────────────────── */
+.two-col{display:grid;grid-template-columns:1.6fr 1fr;gap:20px;margin-bottom:32px}
+.activity-list{list-style:none;display:flex;flex-direction:column;gap:1px}
+.activity-item{
+  display:flex;align-items:center;gap:14px;
+  padding:12px 0;border-bottom:1px solid rgba(0,0,0,0.05);
+}
+.activity-item:last-child{border-bottom:none}
+.a-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.a-dot-pm{background:var(--purple)}
+.a-dot-tb{background:var(--teal)}
+.a-dot-go{background:var(--gold)}
+.a-dot-mg{background:var(--magenta)}
+.a-text{flex:1;font-size:13px;color:var(--text)}
+.a-time{font-size:12px;color:var(--text-muted);flex-shrink:0}
+.a-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;flex-shrink:0}
+
+/* progress bars */
+.progress-row{margin-bottom:14px}
+.progress-header{display:flex;justify-content:space-between;margin-bottom:6px}
+.progress-name{font-size:13px;font-weight:500}
+.progress-pct{font-size:12px;font-weight:600;color:var(--text-muted)}
+.progress-track{
+  height:6px;background:rgba(0,0,0,0.06);border-radius:999px;overflow:hidden;
+}
+.progress-fill{height:100%;border-radius:999px;transition:width 1s cubic-bezier(0.23,1,0.32,1)}
+
+/* ── Gradient text util ───────────────────────────────── */
+.grad-text{
+  background:var(--grad-text);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.grad-text-tb{
+  background:var(--grad-tb);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+
+/* ── Section heading ──────────────────────────────────── */
+.section-heading{
+  font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px;
+}
+.section-sub{font-size:14px;color:var(--text-muted);margin-bottom:24px}
+
+/* ── Footer ───────────────────────────────────────────── */
+footer{
+  position:relative;z-index:1;
+  border-top:1px solid var(--border-nav);
+  padding:24px 40px;
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(255,255,255,0.60);
+  backdrop-filter:blur(16px);
+  font-size:13px;color:var(--text-muted);
+}
+
+/* ── Responsive ───────────────────────────────────────── */
+@media(max-width:900px){
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .feature-grid{grid-template-columns:1fr 1fr}
+  .two-col{grid-template-columns:1fr}
+  nav{padding:0 20px}
+  main{padding:36px 20px 60px}
+}
+@media(max-width:600px){
+  .stats{grid-template-columns:1fr}
+  .feature-grid{grid-template-columns:1fr}
+  .nav-links{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- Ambient orbs -->
+<div class="orb orb-purple"></div>
+<div class="orb orb-magenta"></div>
+<div class="orb orb-teal"></div>
+
+<!-- Hex grid texture -->
+<div class="hex-grid"></div>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-logo">HexaInsight</div>
+  <ul class="nav-links">
+    <li><a href="#" class="active">Dashboard</a></li>
+    <li><a href="#">Financials</a></li>
+    <li><a href="#">Executive</a></li>
+    <li><a href="#">Collections</a></li>
+    <li><a href="#">Reports</a></li>
+  </ul>
+  <div class="nav-right">
+    <div class="nav-avatar">P</div>
+    <button class="nav-btn">Upgrade</button>
+  </div>
+</nav>
+
+<main>
+
+  <!-- Hero -->
+  <section class="hero">
+    <!-- Rotating hex rings -->
+    <div class="hex-rings">
+      <!-- Outer ring -->
+      <svg class="ring ring-outer" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g stroke="#8b18e8" stroke-width="1.2">
+          <polygon points="300,48 348,75 348,129 300,156 252,129 252,75"/>
+          <polygon points="396,100 444,127 444,181 396,208 348,181 348,127"/>
+          <polygon points="444,202 492,229 492,283 444,310 396,283 396,229"/>
+          <polygon points="396,304 444,331 444,385 396,412 348,385 348,331"/>
+          <polygon points="300,356 348,383 348,437 300,464 252,437 252,383"/>
+          <polygon points="204,304 252,331 252,385 204,412 156,385 156,331"/>
+          <polygon points="156,202 204,229 204,283 156,310 108,283 108,229"/>
+          <polygon points="204,100 252,127 252,181 204,208 156,181 156,127"/>
+        </g>
+      </svg>
+      <!-- Inner ring -->
+      <svg class="ring ring-inner" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute;inset:60px;width:calc(100% - 120px);height:calc(100% - 120px)">
+        <g stroke="#17b8a5" stroke-width="1.2">
+          <polygon points="180,60 216,81 216,123 180,144 144,123 144,81"/>
+          <polygon points="252,18 288,39 288,81 252,102 216,81 216,39"/>
+          <polygon points="324,60 360,81 360,123 324,144 288,123 288,81"/>
+          <polygon points="324,144 360,165 360,207 324,228 288,207 288,165"/>
+          <polygon points="252,186 288,207 288,249 252,270 216,249 216,207"/>
+          <polygon points="180,144 216,165 216,207 180,228 144,207 144,165"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="hero-eyebrow"><span></span> Live Intelligence</div>
+    <h1>Your Financial<br>Command Center</h1>
+    <p class="hero-sub">Real-time insights, beautiful analytics, and AI-powered recommendations — all in one airy, premium workspace.</p>
+    <div class="hero-actions">
+      <button class="btn-primary">Explore Dashboard</button>
+      <button class="btn-secondary">View Reports →</button>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <p class="section-label">Overview — May 2026</p>
+  <div class="stats">
+    <div class="card card-pm">
+      <div class="stat-icon icon-pm">💜</div>
+      <div class="stat-label">Total Revenue</div>
+      <div class="stat-value grad-text">₹48.2L</div>
+      <span class="stat-delta delta-up">▲ 12.4%</span>
+      <div class="pills">
+        <span class="pill pill-pm">YTD</span>
+        <span class="pill pill-mg">Q2</span>
+      </div>
+    </div>
+
+    <div class="card card-tb">
+      <div class="stat-icon icon-tb">🩵</div>
+      <div class="stat-label">Outstanding</div>
+      <div class="stat-value grad-text-tb">₹9.7L</div>
+      <span class="stat-delta delta-dn">▼ 3.1%</span>
+      <div class="pills">
+        <span class="pill pill-tb">Receivables</span>
+      </div>
+    </div>
+
+    <div class="card card-go">
+      <div class="stat-icon icon-go">🌟</div>
+      <div class="stat-label">Active Clients</div>
+      <div class="stat-value" style="background:var(--grad-go);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">284</div>
+      <span class="stat-delta delta-up">▲ 7 new</span>
+      <div class="pills">
+        <span class="pill pill-go">Enterprise</span>
+        <span class="pill pill-blue">SMB</span>
+      </div>
+    </div>
+
+    <div class="card card-pm-rev">
+      <div class="stat-icon icon-mg">✨</div>
+      <div class="stat-label">Collections Rate</div>
+      <div class="stat-value grad-text">94.3%</div>
+      <span class="stat-delta delta-up">▲ 2.8%</span>
+      <div class="pills">
+        <span class="pill pill-pm">On-time</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <p class="section-label" style="margin-top:8px">Modules</p>
+  <div class="feature-grid">
+    <div class="card card-pm" style="animation-delay:.08s">
+      <div class="feature-icon fi-pm">📊</div>
+      <div class="feature-title">Financial Statements</div>
+      <div class="feature-desc">P&amp;L, balance sheet, and cash flow — rendered with precision and drill-down interactivity.</div>
+      <div class="pills" style="margin-top:16px">
+        <span class="pill pill-pm">P&amp;L</span>
+        <span class="pill pill-mg">Balance Sheet</span>
+        <span class="pill pill-blue">Cash Flow</span>
+      </div>
+    </div>
+
+    <div class="card card-tb" style="animation-delay:.16s">
+      <div class="feature-icon fi-tb">🔁</div>
+      <div class="feature-title">Collections Tracker</div>
+      <div class="feature-desc">Monitor aging invoices, track follow-ups, and celebrate on-time payments in real time.</div>
+      <div class="pills" style="margin-top:16px">
+        <span class="pill pill-tb">Aging</span>
+        <span class="pill pill-blue">Alerts</span>
+      </div>
+    </div>
+
+    <div class="card card-go" style="animation-delay:.24s">
+      <div class="feature-icon fi-go">🏆</div>
+      <div class="feature-title">Top Customers</div>
+      <div class="feature-desc">Rank and segment your best clients by revenue, loyalty, and payment behavior.</div>
+      <div class="pills" style="margin-top:16px">
+        <span class="pill pill-go">Revenue</span>
+        <span class="pill pill-pm">Segments</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Activity + Progress -->
+  <div class="section-heading">Activity &amp; Health</div>
+  <p class="section-sub">Live feed and performance indicators</p>
+  <div class="two-col">
+    <!-- Activity feed -->
+    <div class="card card-pm" style="animation-delay:.05s;padding:28px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:16px">Recent Activity</div>
+      <ul class="activity-list">
+        <li class="activity-item">
+          <span class="a-dot a-dot-pm"></span>
+          <span class="a-text">Invoice #4821 sent to Nuvama Wealth</span>
+          <span class="a-time">2m ago</span>
+          <span class="a-badge pill pill-pm">Sent</span>
+        </li>
+        <li class="activity-item">
+          <span class="a-dot a-dot-tb"></span>
+          <span class="a-text">Payment ₹1.2L received from Axis Capital</span>
+          <span class="a-time">18m ago</span>
+          <span class="a-badge pill pill-tb">Paid</span>
+        </li>
+        <li class="activity-item">
+          <span class="a-dot a-dot-go"></span>
+          <span class="a-text">New client onboarded — Emkay Global</span>
+          <span class="a-time">1h ago</span>
+          <span class="a-badge pill pill-go">New</span>
+        </li>
+        <li class="activity-item">
+          <span class="a-dot a-dot-mg"></span>
+          <span class="a-text">Overdue reminder sent to Prabhudas Lilladher</span>
+          <span class="a-time">3h ago</span>
+          <span class="a-badge pill pill-mg">Reminder</span>
+        </li>
+        <li class="activity-item">
+          <span class="a-dot a-dot-pm"></span>
+          <span class="a-text">Monthly P&amp;L report generated</span>
+          <span class="a-time">5h ago</span>
+          <span class="a-badge pill pill-pm">Report</span>
+        </li>
+        <li class="activity-item">
+          <span class="a-dot a-dot-tb"></span>
+          <span class="a-text">Collections rate crossed 94% threshold</span>
+          <span class="a-time">Yesterday</span>
+          <span class="a-badge pill pill-tb">Milestone</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Progress bars -->
+    <div class="card card-tb" style="animation-delay:.14s;padding:28px">
+      <div style="font-size:14px;font-weight:700;margin-bottom:20px">Segment Health</div>
+
+      <div class="progress-row">
+        <div class="progress-header">
+          <span class="progress-name">Enterprise</span>
+          <span class="progress-pct">88%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:88%;background:var(--grad-pm)"></div>
+        </div>
+      </div>
+
+      <div class="progress-row">
+        <div class="progress-header">
+          <span class="progress-name">Brokerages</span>
+          <span class="progress-pct">74%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:74%;background:var(--grad-tb)"></div>
+        </div>
+      </div>
+
+      <div class="progress-row">
+        <div class="progress-header">
+          <span class="progress-name">Fund Houses</span>
+          <span class="progress-pct">96%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:96%;background:var(--grad-go)"></div>
+        </div>
+      </div>
+
+      <div class="progress-row">
+        <div class="progress-header">
+          <span class="progress-name">SMBs</span>
+          <span class="progress-pct">61%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:61%;background:linear-gradient(135deg,#e010c8,#1a6ff4)"></div>
+        </div>
+      </div>
+
+      <div class="progress-row" style="margin-bottom:0">
+        <div class="progress-header">
+          <span class="progress-name">Research Firms</span>
+          <span class="progress-pct">82%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" style="width:82%;background:var(--grad-pm)"></div>
+        </div>
+      </div>
+
+      <div style="margin-top:22px;padding-top:16px;border-top:1px solid rgba(0,0,0,0.05)">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px">Overall collection health</div>
+        <div style="font-size:24px;font-weight:800" class="grad-text">94.3% <span style="font-size:13px;font-weight:500;color:var(--text-muted)">this month</span></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span>© 2026 Hexamatics · HexaInsight</span>
+  <span>Built with precision for financial clarity</span>
+</footer>
+
+</body>
+</html>

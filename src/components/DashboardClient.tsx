@@ -20,8 +20,12 @@ import { RevenueMixDonutChart } from './charts/RevenueMixDonutChart'
 import { AnnualCompareChart } from './charts/AnnualCompareChart'
 import { EntityTable } from './EntityTable'
 import { FinancialRatiosTable } from './FinancialRatiosTable'
+import { onRefresh } from '@/lib/refresh-event'
 
 type Tab = 'executive' | 'overview' | 'revenue' | 'annual' | 'collections' | 'ratios' | 'entities'
+
+// Module-level client cache — survives tab switching, cleared on Refresh
+const _clientCache = new Map<string, { data: DashboardData; annualData: AnnualYearData[] }>()
 
 interface Props {
   initialData: DashboardData
@@ -70,7 +74,20 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
 
   const abortRef = useRef<AbortController | null>(null)
 
-  const fetchData = useCallback(async (p: PeriodDef) => {
+  const cacheKey = (p: PeriodDef) =>
+    [p.mode, p.year, p.month ?? '', p.quarter ?? '', p.half ?? '', p.comparison ?? 'previous', p.customFrom ?? '', p.customTo ?? ''].join('_')
+
+  const fetchData = useCallback(async (p: PeriodDef, force = false) => {
+    // Return instantly from client cache unless forced
+    if (!force) {
+      const cached = _clientCache.get(cacheKey(p))
+      if (cached) {
+        setData(cached.data)
+        if (cached.annualData.length) setAnnualData(cached.annualData)
+        return
+      }
+    }
+
     abortRef.current?.abort()
     const controller = new AbortController()
     abortRef.current = controller
@@ -87,20 +104,20 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
         ...(p.customFrom ? { customFrom: p.customFrom       } : {}),
         ...(p.customTo   ? { customTo:   p.customTo         } : {}),
         comparison: p.comparison ?? 'previous',
+        ...(force ? { force: '1' } : {}),
       })
-      const res = await fetch(`/api/zoho/dashboard?${params}`, {
-        signal: controller.signal,
-      })
+      const res = await fetch(`/api/zoho/dashboard?${params}`, { signal: controller.signal })
       const json = await res.json()
       if (json.error) {
         setError(json.error)
       } else {
         setData(json)
+        // Save to client cache
+        const prev = _clientCache.get(cacheKey(p))
+        _clientCache.set(cacheKey(p), { data: json, annualData: prev?.annualData ?? [] })
       }
     } catch (err: any) {
-      if (err.name !== 'AbortError') {
-        setError(err.message ?? 'Failed to load dashboard data')
-      }
+      if (err.name !== 'AbortError') setError(err.message ?? 'Failed to load dashboard data')
     } finally {
       if (!controller.signal.aborted) setLoading(false)
     }
@@ -111,23 +128,34 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
     try {
       const res = await fetch(`/api/zoho/annual?fromYear=2023${force ? '&refresh=true' : ''}`)
       const json = await res.json()
-      if (!json.error && Array.isArray(json)) setAnnualData(json)
+      if (!json.error && Array.isArray(json)) {
+        setAnnualData(json)
+        const prev = _clientCache.get(cacheKey(period))
+        if (prev) _clientCache.set(cacheKey(period), { ...prev, annualData: json })
+      }
     } finally {
       setAnnualLoading(false)
     }
-  }, [])
+  }, [period])
 
-  // Auto-fetch on mount (page no longer pre-loads data server-side)
+  // On mount: use client cache if available, otherwise fetch
   useEffect(() => {
     fetchData(initialPeriod)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Global Refresh button — clears client cache + force-fetches everything
+  useEffect(() => {
+    return onRefresh(() => {
+      _clientCache.clear()
+      fetchData(period, true)
+      if (annualData) fetchAnnual(true)
+    })
+  }, [period, annualData, fetchData, fetchAnnual])
+
   // Fetch annual data when that tab is first opened
   useEffect(() => {
-    if (activeTab === 'annual' && !annualData && !annualLoading) {
-      fetchAnnual()
-    }
+    if (activeTab === 'annual' && !annualData && !annualLoading) fetchAnnual()
   }, [activeTab, annualData, annualLoading, fetchAnnual])
 
   const handlePeriodChange = (p: PeriodDef) => {

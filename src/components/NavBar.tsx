@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
+import { useState } from 'react'
 import { HexaLogo } from '@/components/HexaLogo'
+import { dispatchRefresh } from '@/lib/refresh-event'
 
 const NAV_LINKS = [
   { href: '/executive',   label: 'Executive Summary' },
@@ -14,6 +16,13 @@ const NAV_LINKS = [
 export function NavBar() {
   const pathname = usePathname()
   const { data: session } = useSession()
+  const [refreshing, setRefreshing] = useState(false)
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    dispatchRefresh()
+    setTimeout(() => setRefreshing(false), 3000)
+  }
 
   return (
     <nav className="sticky top-0 z-50 bg-white/70 backdrop-blur-2xl border-b border-black/[0.07] print:hidden">
@@ -45,8 +54,22 @@ export function NavBar() {
 
         <div className="flex-1" />
 
-        {/* User info */}
+        {/* Global Refresh + User */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Refresh all dashboards — AR, Financial Statements, Executive Summary"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
+              ${refreshing
+                ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                : 'border-gray-300 text-gray-600 hover:border-hexa-purple hover:text-hexa-purple hover:bg-purple-50/60'
+              }`}
+          >
+            <span className={refreshing ? 'animate-spin inline-block' : ''}>↻</span>
+            {refreshing ? 'Refreshing…' : 'Refresh All'}
+          </button>
+
           {session && (
             <>
               <span className="text-xs text-gray-500 hidden sm:block">

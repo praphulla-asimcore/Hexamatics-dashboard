@@ -14,6 +14,7 @@ import {
   variance, varianceLabel, insightColor, insightIcon,
 } from '@/lib/financial-analytics'
 import { getFinancialPeriodLabel } from '@/lib/zoho-reports'
+import { onRefresh } from '@/lib/refresh-event'
 import type {
   FinancialPeriod, PLStatement, BalanceSheetStatement, CashFlowStatement,
   ConsolidatedPL, ConsolidatedBS, ConsolidatedCF, FSLineItem, CFOInsight,
@@ -1328,6 +1329,11 @@ export function FinancialsClient() {
   useEffect(() => {
     fetchData(activeTab)
   }, [fetchData, activeTab])
+
+  // Global Refresh — force re-fetch current tab
+  useEffect(() => {
+    return onRefresh(() => fetchData(activeTab, true))
+  }, [activeTab, fetchData])
 
   function clearData() {
     setPLConsolidated(null); setBSConsolidated(null); setCFConsolidated(null)

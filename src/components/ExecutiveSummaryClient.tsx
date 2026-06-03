@@ -13,6 +13,10 @@ import { KpiCard } from './KpiCard'
 import { NavBar } from './NavBar'
 import { PeriodSelector } from './PeriodSelector'
 import { HexaLogo } from './HexaLogo'
+import { onRefresh } from '@/lib/refresh-event'
+
+type ExecCache = { ar: DashboardData; pl: any; bs: any; cf: any }
+const _clientCache = new Map<string, ExecCache>()
 
 interface Props {
   initialData: DashboardData
@@ -154,6 +158,16 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
       if (plJson.consolidated) setPlData({ consolidated: plJson.consolidated, insights: plJson.insights ?? [] })
       if (bsJson.consolidated) setBsData({ consolidated: bsJson.consolidated, insights: bsJson.insights ?? [] })
       if (cfJson.consolidated) setCfData({ consolidated: cfJson.consolidated, insights: cfJson.insights ?? [] })
+
+      // Save to client cache
+      if (!ctrl.signal.aborted) {
+        _clientCache.set([p.mode, p.year, p.month ?? '', p.comparison ?? 'previous'].join('_'), {
+          ar: data,
+          pl: plJson.consolidated ? plJson : null,
+          bs: bsJson.consolidated ? bsJson : null,
+          cf: cfJson.consolidated ? cfJson : null,
+        })
+      }
     } catch (err: any) {
       if (err.name === 'AbortError') return
     }
@@ -161,12 +175,35 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
     if (!ctrl.signal.aborted) setLoading(false)
   }, [])
 
+  const ck = (p: PeriodDef) =>
+    [p.mode, p.year, p.month ?? '', p.comparison ?? 'previous'].join('_')
+
   const handlePeriodChange = useCallback((p: PeriodDef) => {
     setPeriod(p)
     fetchAll(p)
   }, [fetchAll])
 
-  useEffect(() => { fetchAll(initialPeriod) }, [])
+  // On mount: use client cache if available
+  useEffect(() => {
+    const cached = _clientCache.get(ck(initialPeriod))
+    if (cached) {
+      setData(cached.ar)
+      if (cached.pl) setPlData({ consolidated: cached.pl.consolidated, insights: cached.pl.insights ?? [] })
+      if (cached.bs) setBsData({ consolidated: cached.bs.consolidated, insights: cached.bs.insights ?? [] })
+      if (cached.cf) setCfData({ consolidated: cached.cf.consolidated, insights: cached.cf.insights ?? [] })
+    } else {
+      fetchAll(initialPeriod)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Global Refresh — clear client cache + force re-fetch
+  useEffect(() => {
+    return onRefresh(() => {
+      _clientCache.clear()
+      fetchAll(period)
+    })
+  }, [period, fetchAll])
 
   // ─── Derived metrics ─────────────────────────────────────────────────────
 

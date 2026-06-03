@@ -111,7 +111,7 @@ function sleep(ms: number): Promise<void> {
 // that persist for the remainder of the minute. This slot system ensures a
 // minimum of MIN_CALL_INTERVAL_MS between the *start* of any two Zoho API
 // calls within this serverless instance — keeping us well under the limit.
-const MIN_CALL_INTERVAL_MS = 1100 // ≈ 54 calls/minute max; Zoho limit ~100/min
+const MIN_CALL_INTERVAL_MS = 300 // ≈ 200 calls/minute max; safe for single-Lambda sequential fetches
 let _nextSlotAt = 0
 
 async function acquireSlot(): Promise<void> {
@@ -149,8 +149,8 @@ export async function zohoFetch<T = unknown>(
       const body = await res.text()
       if (attempt < maxAttempts - 1) {
         // Wait 60 s — enough for Zoho's per-minute window to fully reset
-        console.warn(`Zoho 429 on ${path} (attempt ${attempt + 1}/${maxAttempts}), waiting 60 s…`, body)
-        await sleep(60_000)
+        console.warn(`Zoho 429 on ${path} (attempt ${attempt + 1}/${maxAttempts}), waiting 5 s…`, body)
+        await sleep(5_000)
         continue
       }
       throw new Error(`Zoho API error 429 for ${path}: ${body}`)
