@@ -1,11 +1,13 @@
 import { zohoFetch } from './zoho-auth'
 import { ORGS } from './orgs'
+import { getCustomerType } from './customer-classification'
 import type {
   ZohoInvoice,
   EntitySummary,
   DashboardData,
   PeriodDef,
   PeriodSummary,
+  SegmentSummary,
   ArAging,
   TopCustomer,
   OrgConfig,
@@ -230,6 +232,26 @@ function buildArAging(invoices: ZohoInvoice[]): ArAging {
   return aging
 }
 
+function buildSegmentSummary(invoices: ZohoInvoice[], fxToMyr: number): SegmentSummary {
+  const totalLocal = invoices.reduce((s, inv) => s + inv.total, 0)
+  const outstandingLocal = invoices.reduce((s, inv) => s + inv.balance, 0)
+  const map: Record<string, TopCustomer> = {}
+  invoices.forEach((inv) => {
+    if (!map[inv.customer_name])
+      map[inv.customer_name] = { name: inv.customer_name, total: 0, outstanding: 0, invoiceCount: 0 }
+    map[inv.customer_name].total += inv.total
+    map[inv.customer_name].outstanding += inv.balance
+    map[inv.customer_name].invoiceCount++
+  })
+  return {
+    totalMyr:       totalLocal * fxToMyr,
+    outstandingMyr: outstandingLocal * fxToMyr,
+    collectedMyr:   (totalLocal - outstandingLocal) * fxToMyr,
+    invoiceCount:   invoices.length,
+    topCustomers:   Object.values(map).sort((a, b) => b.total - a.total).slice(0, 10),
+  }
+}
+
 function buildTopCustomers(invoices: ZohoInvoice[]): TopCustomer[] {
   const map: Record<string, TopCustomer> = {}
   invoices.forEach((inv) => {
@@ -306,24 +328,38 @@ async function fetchEntityData(
     console.error(`Failed to fetch ${org.name}:`, err)
   }
 
-  const periodInvoices = allInvoices.filter(
+  // Split all fetched invoices by customer type
+  const byType = (invs: ZohoInvoice[]) => ({
+    thirdParty: invs.filter((inv) => getCustomerType(inv.customer_name) === 'third-party'),
+    interco:    invs.filter((inv) => getCustomerType(inv.customer_name) === 'interco'),
+    rpt:        invs.filter((inv) => getCustomerType(inv.customer_name) === 'rpt'),
+  })
+
+  const period3P = byType(allInvoices.filter(
     (inv) => inv.date >= periodRange.from && inv.date <= periodRange.to
-  )
-  const compInvoices = comparisonRange
-    ? allInvoices.filter((inv) => inv.date >= comparisonRange.from && inv.date <= comparisonRange.to)
+  ))
+  const comp3P = comparisonRange
+    ? byType(allInvoices.filter((inv) => inv.date >= comparisonRange.from && inv.date <= comparisonRange.to))
     : null
-  const trendInvoices = allInvoices.filter(
+  const trend3P = byType(allInvoices.filter(
     (inv) => inv.date >= trendRange.from && inv.date <= trendRange.to
-  )
+  ))
 
-  const period = buildPeriodSummary(periodInvoices, org.fxToMyr)
-  const comparison = compInvoices ? buildPeriodSummary(compInvoices, org.fxToMyr) : undefined
-  const arAging = buildArAging(periodInvoices)
-  const topCustomers = buildTopCustomers(periodInvoices)
-  const ratios = buildRatios(period, arAging, topCustomers, daysInPeriod)
-  const monthlyTrend = buildMonthlyTrend(trendInvoices, org.fxToMyr)
+  // Main metrics use Third Party only
+  const period      = buildPeriodSummary(period3P.thirdParty, org.fxToMyr)
+  const comparison  = comp3P ? buildPeriodSummary(comp3P.thirdParty, org.fxToMyr) : undefined
+  const arAging     = buildArAging(period3P.thirdParty)
+  const topCustomers = buildTopCustomers(period3P.thirdParty)
+  const ratios      = buildRatios(period, arAging, topCustomers, daysInPeriod)
+  const monthlyTrend = buildMonthlyTrend(trend3P.thirdParty, org.fxToMyr)
 
-  return { org, period, comparison, arAging, topCustomers, ratios, monthlyTrend }
+  // Interco and RPT segments
+  const interco = period3P.interco.length > 0
+    ? buildSegmentSummary(period3P.interco, org.fxToMyr) : undefined
+  const rpt = period3P.rpt.length > 0
+    ? buildSegmentSummary(period3P.rpt, org.fxToMyr) : undefined
+
+  return { org, period, comparison, arAging, topCustomers, ratios, monthlyTrend, interco, rpt }
 }
 
 // ─── Main dashboard fetch ─────────────────────────────────────────────────────
@@ -384,10 +420,34 @@ export async function fetchDashboard(
 
   const compLabel = compPeriod ? getPeriodLabel(compPeriod) : ''
 
+  // Roll up interco and RPT across all entities
+  const sumSegment = (key: 'interco' | 'rpt'): SegmentSummary | undefined => {
+    const segs = entities.map((e) => e[key]).filter(Boolean) as import('@/types').SegmentSummary[]
+    if (!segs.length) return undefined
+    const topMap: Record<string, import('@/types').TopCustomer> = {}
+    segs.forEach((s) => s.topCustomers.forEach((c) => {
+      if (!topMap[c.name]) topMap[c.name] = { ...c }
+      else {
+        topMap[c.name].total += c.total
+        topMap[c.name].outstanding += c.outstanding
+        topMap[c.name].invoiceCount += c.invoiceCount
+      }
+    }))
+    return {
+      totalMyr:       segs.reduce((s, e) => s + e.totalMyr, 0),
+      outstandingMyr: segs.reduce((s, e) => s + e.outstandingMyr, 0),
+      collectedMyr:   segs.reduce((s, e) => s + e.collectedMyr, 0),
+      invoiceCount:   segs.reduce((s, e) => s + e.invoiceCount, 0),
+      topCustomers:   Object.values(topMap).sort((a, b) => b.total - a.total).slice(0, 10),
+    }
+  }
+
   return {
     entities,
     group,
-    periodLabel: getPeriodLabel(period),
+    intercoGroup: sumSegment('interco'),
+    rptGroup:     sumSegment('rpt'),
+    periodLabel:  getPeriodLabel(period),
     comparisonLabel: compLabel,
     lastRefreshed: new Date().toISOString(),
     dateRange: periodRange,

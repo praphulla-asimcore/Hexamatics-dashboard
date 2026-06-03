@@ -135,7 +135,7 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
     fetchData(p)
   }
 
-  const { group, entities, periodLabel, comparisonLabel, lastRefreshed } = data
+  const { group, entities, periodLabel, comparisonLabel, lastRefreshed, intercoGroup, rptGroup } = data
 
   const revenueGrowth = group.comparisonTotalMyr && group.comparisonTotalMyr > 0
     ? ((group.totalMyr - group.comparisonTotalMyr) / group.comparisonTotalMyr) * 100
@@ -1186,6 +1186,113 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
             </div>
           </div>
         )}
+
+      {/* ── Interco & RPT Panels ─────────────────────────────────────────── */}
+      {(intercoGroup || rptGroup) && (
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {/* Interco */}
+            {intercoGroup && (
+              <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-800 bg-gray-800/40 flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-blue-400" />
+                  <h2 className="text-xs font-semibold text-white uppercase tracking-wider">
+                    Interco AR — {periodLabel}
+                  </h2>
+                </div>
+                <div className="p-5">
+                  <div className="grid grid-cols-3 gap-4 mb-5">
+                    {[
+                      { label: 'Billed',       value: fmtMyr(intercoGroup.totalMyr) },
+                      { label: 'Outstanding',  value: fmtMyr(intercoGroup.outstandingMyr) },
+                      { label: 'Collected',    value: fmtMyr(intercoGroup.collectedMyr) },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+                        <p className="text-lg font-bold text-white tabular-nums">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {intercoGroup.topCustomers.length > 0 && (
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-500 border-b border-gray-800">
+                          <th className="text-left pb-1.5 font-medium">Entity</th>
+                          <th className="text-right pb-1.5 font-medium">Outstanding (MYR)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/50">
+                        {intercoGroup.topCustomers.filter(c => c.outstanding > 0).map((c) => (
+                          <tr key={c.name}>
+                            <td className="py-1.5 text-gray-300">{c.name}</td>
+                            <td className="py-1.5 text-right text-blue-300 tabular-nums font-medium">
+                              {fmtMyr(c.outstanding * (entities.find(e => e.interco?.topCustomers.some(x => x.name === c.name))?.org.fxToMyr ?? 1))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  <p className="text-[10px] text-gray-600 mt-3">
+                    {intercoGroup.invoiceCount} invoice{intercoGroup.invoiceCount !== 1 ? 's' : ''} · Excluded from main AR analysis
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* RPT */}
+            {rptGroup && (
+              <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-800 bg-gray-800/40 flex items-center gap-2">
+                  <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                  <h2 className="text-xs font-semibold text-white uppercase tracking-wider">
+                    Related Party (RPT) AR — {periodLabel}
+                  </h2>
+                </div>
+                <div className="p-5">
+                  <div className="grid grid-cols-3 gap-4 mb-5">
+                    {[
+                      { label: 'Billed',       value: fmtMyr(rptGroup.totalMyr) },
+                      { label: 'Outstanding',  value: fmtMyr(rptGroup.outstandingMyr) },
+                      { label: 'Collected',    value: fmtMyr(rptGroup.collectedMyr) },
+                    ].map(({ label, value }) => (
+                      <div key={label}>
+                        <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
+                        <p className="text-lg font-bold text-white tabular-nums">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {rptGroup.topCustomers.length > 0 && (
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-500 border-b border-gray-800">
+                          <th className="text-left pb-1.5 font-medium">Customer</th>
+                          <th className="text-right pb-1.5 font-medium">Outstanding (MYR)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-800/50">
+                        {rptGroup.topCustomers.filter(c => c.outstanding > 0).map((c) => (
+                          <tr key={c.name}>
+                            <td className="py-1.5 text-gray-300">{c.name}</td>
+                            <td className="py-1.5 text-right text-amber-300 tabular-nums font-medium">
+                              {fmtMyr(c.outstanding * (entities.find(e => e.rpt?.topCustomers.some(x => x.name === c.name))?.org.fxToMyr ?? 1))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                  <p className="text-[10px] text-gray-600 mt-3">
+                    {rptGroup.invoiceCount} invoice{rptGroup.invoiceCount !== 1 ? 's' : ''} · Excluded from main AR analysis
+                  </p>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
 
       </main>
 

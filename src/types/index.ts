@@ -101,14 +101,27 @@ export interface TopCustomer {
   invoiceCount: number
 }
 
+// Lightweight summary used for Interco and RPT segments
+export interface SegmentSummary {
+  totalMyr: number
+  outstandingMyr: number
+  collectedMyr: number
+  invoiceCount: number
+  topCustomers: TopCustomer[]
+}
+
 export interface EntitySummary {
   org: OrgConfig
+  // Third-party only — drives all main AR metrics
   period: PeriodSummary
   comparison?: PeriodSummary
   arAging: ArAging
   topCustomers: TopCustomer[]
   ratios: FinancialRatios
   monthlyTrend: MonthDataPoint[]
+  // Separate segments (shown in dedicated panels)
+  interco?: SegmentSummary
+  rpt?: SegmentSummary
 }
 
 export interface GroupSummary {
@@ -124,6 +137,9 @@ export interface GroupSummary {
 export interface DashboardData {
   entities: EntitySummary[]
   group: GroupSummary
+  // Group-level interco and RPT totals
+  intercoGroup?: SegmentSummary
+  rptGroup?: SegmentSummary
   periodLabel: string
   comparisonLabel: string
   lastRefreshed: string
