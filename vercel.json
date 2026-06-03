@@ -1,8 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/zoho/refresh-cache",
-      "schedule": "0 0 * * *"
+      "path": "/api/cron/warm",
+      "schedule": "0 */3 * * *"
     }
   ]
 }

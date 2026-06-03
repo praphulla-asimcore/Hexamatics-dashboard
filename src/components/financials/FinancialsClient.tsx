@@ -1607,11 +1607,11 @@ export function FinancialsClient() {
               <span className="text-xs text-gray-400">Updated {new Date(lastRefreshed).toLocaleTimeString()}</span>
             )}
             <button onClick={() => fetchData(activeTab, true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 hover:text-gray-900 border border-black/[0.08] bg-white/80 hover:bg-white transition">
+              className="btn-3d-ghost px-3 py-1.5 rounded-lg text-xs font-medium border">
               ↻ Refresh
             </button>
             <button onClick={handlePrint}
-              className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-hexa-gradient hover:opacity-90 transition shadow-sm">
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-hexa-gradient">
               ⤓ Download PDF
             </button>
           </div>
