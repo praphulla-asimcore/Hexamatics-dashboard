@@ -27,8 +27,10 @@ import type {
   PeriodDef, ZohoInvoice,
 } from '@/types'
 
-// Max age (ms) before DB data is considered stale — fall back to Zoho
-const MAX_STALE_MS = 2 * 60 * 60 * 1000 // 2 hours
+// Max age before synced data is considered too old to trust. The daily cron
+// (+ manual Sync Now) keeps it current, so this only triggers a Zoho fallback
+// if sync has been broken for a week.
+const MAX_STALE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 async function getInvoicesFromDB(
   from: string,
