@@ -2,7 +2,7 @@
   "regions": ["sin1"],
   "crons": [
     {
-      "path": "/api/cron/warm",
+      "path": "/api/sync/run?mode=incremental",
       "schedule": "0 2 * * *"
     }
   ]

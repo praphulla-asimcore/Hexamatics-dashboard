@@ -143,7 +143,7 @@ export function getDefaultPeriod(): PeriodDef {
   return { mode: 'month', year: now.getFullYear(), month, comparison: 'previous' }
 }
 
-function getLast12MonthsRange(period: PeriodDef): { from: string; to: string } {
+export function getLast12MonthsRange(period: PeriodDef): { from: string; to: string } {
   const { to } = getPeriodDateRange(period)
   const toDate = new Date(to)
   const fromDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1)
@@ -204,7 +204,7 @@ async function fetchOrgInvoices(
 
 // ─── Build summaries ──────────────────────────────────────────────────────────
 
-function buildPeriodSummary(invoices: ZohoInvoice[], fxToMyr: number): PeriodSummary {
+export function buildPeriodSummary(invoices: ZohoInvoice[], fxToMyr: number): PeriodSummary {
   const total = invoices.reduce((s, inv) => s + inv.total, 0)
   const outstanding = invoices.reduce((s, inv) => s + inv.balance, 0)
   const collected = total - outstanding
@@ -215,7 +215,7 @@ function buildPeriodSummary(invoices: ZohoInvoice[], fxToMyr: number): PeriodSum
   return { count: invoices.length, total, collected, outstanding, totalMyr: total * fxToMyr, statusBreakdown }
 }
 
-function buildArAging(invoices: ZohoInvoice[]): ArAging {
+export function buildArAging(invoices: ZohoInvoice[]): ArAging {
   const today = new Date()
   const aging: ArAging = { current: 0, days1to30: 0, days31to60: 0, days61to90: 0, days90plus: 0 }
   invoices
@@ -232,7 +232,7 @@ function buildArAging(invoices: ZohoInvoice[]): ArAging {
   return aging
 }
 
-function buildSegmentSummary(invoices: ZohoInvoice[], fxToMyr: number): SegmentSummary {
+export function buildSegmentSummary(invoices: ZohoInvoice[], fxToMyr: number): SegmentSummary {
   const totalLocal = invoices.reduce((s, inv) => s + inv.total, 0)
   const outstandingLocal = invoices.reduce((s, inv) => s + inv.balance, 0)
   const map: Record<string, TopCustomer> = {}
@@ -252,7 +252,7 @@ function buildSegmentSummary(invoices: ZohoInvoice[], fxToMyr: number): SegmentS
   }
 }
 
-function buildTopCustomers(invoices: ZohoInvoice[]): TopCustomer[] {
+export function buildTopCustomers(invoices: ZohoInvoice[]): TopCustomer[] {
   const map: Record<string, TopCustomer> = {}
   invoices.forEach((inv) => {
     if (!map[inv.customer_name]) {
@@ -265,7 +265,7 @@ function buildTopCustomers(invoices: ZohoInvoice[]): TopCustomer[] {
   return Object.values(map).sort((a, b) => b.total - a.total).slice(0, 10)
 }
 
-function buildRatios(
+export function buildRatios(
   period: PeriodSummary,
   arAging: ArAging,
   topCustomers: TopCustomer[],
@@ -282,7 +282,7 @@ function buildRatios(
   return { collectionRate, dso, overdueRatio, topCustomerConc, avgInvoiceValue }
 }
 
-function buildMonthlyTrend(invoices: ZohoInvoice[], fxToMyr: number): MonthDataPoint[] {
+export function buildMonthlyTrend(invoices: ZohoInvoice[], fxToMyr: number): MonthDataPoint[] {
   const byMonth: Record<string, MonthDataPoint> = {}
   invoices.forEach((inv) => {
     const [y, m] = inv.date.split('-').map(Number)
@@ -305,7 +305,7 @@ function buildMonthlyTrend(invoices: ZohoInvoice[], fxToMyr: number): MonthDataP
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function classifyInvoices(invs: ZohoInvoice[]) {
+export function classifyInvoices(invs: ZohoInvoice[]) {
   return {
     thirdParty: invs.filter((inv) => getCustomerType(inv.customer_name) === 'third-party'),
     interco:    invs.filter((inv) => getCustomerType(inv.customer_name) === 'interco'),

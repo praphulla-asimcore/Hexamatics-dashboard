@@ -13,7 +13,7 @@ import { KpiCard } from './KpiCard'
 import { NavBar } from './NavBar'
 import { PeriodSelector } from './PeriodSelector'
 import { HexaLogo } from './HexaLogo'
-import { onRefresh } from '@/lib/refresh-event'
+import { onRefresh, getDataVersion } from '@/lib/refresh-event'
 
 type ExecCache = { ar: DashboardData; pl: any; bs: any; cf: any }
 const _clientCache = new Map<string, ExecCache>()
@@ -124,12 +124,13 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
 
     const arP  = buildArParams(p)
     const finP = buildFinParams(p)
+    let arData: DashboardData | null = null
 
     // AR data — fast single call
     try {
       const arRes = await fetch(`/api/zoho/dashboard?${arP}`, { signal: ctrl.signal })
       const arJson = await arRes.json()
-      if (!arJson.error && !ctrl.signal.aborted) setData(arJson)
+      if (!arJson.error && !ctrl.signal.aborted) { arData = arJson; setData(arJson) }
     } catch (err: any) {
       if (err.name === 'AbortError') return
     }
@@ -159,10 +160,10 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
       if (bsJson.consolidated) setBsData({ consolidated: bsJson.consolidated, insights: bsJson.insights ?? [] })
       if (cfJson.consolidated) setCfData({ consolidated: cfJson.consolidated, insights: cfJson.insights ?? [] })
 
-      // Save to client cache
-      if (!ctrl.signal.aborted) {
-        _clientCache.set([p.mode, p.year, p.month ?? '', p.comparison ?? 'previous'].join('_'), {
-          ar: data,
+      // Save to client cache (keyed with current data version)
+      if (!ctrl.signal.aborted && arData) {
+        _clientCache.set([getDataVersion(), p.mode, p.year, p.month ?? '', p.comparison ?? 'previous'].join('_'), {
+          ar: arData,
           pl: plJson.consolidated ? plJson : null,
           bs: bsJson.consolidated ? bsJson : null,
           cf: cfJson.consolidated ? cfJson : null,
@@ -176,7 +177,7 @@ export function ExecutiveSummaryClient({ initialData, initialPeriod }: Props) {
   }, [])
 
   const ck = (p: PeriodDef) =>
-    [p.mode, p.year, p.month ?? '', p.comparison ?? 'previous'].join('_')
+    [getDataVersion(), p.mode, p.year, p.month ?? '', p.comparison ?? 'previous'].join('_')
 
   const handlePeriodChange = useCallback((p: PeriodDef) => {
     setPeriod(p)

@@ -20,7 +20,7 @@ import { RevenueMixDonutChart } from './charts/RevenueMixDonutChart'
 import { AnnualCompareChart } from './charts/AnnualCompareChart'
 import { EntityTable } from './EntityTable'
 import { FinancialRatiosTable } from './FinancialRatiosTable'
-import { onRefresh } from '@/lib/refresh-event'
+import { onRefresh, getDataVersion } from '@/lib/refresh-event'
 
 type Tab = 'executive' | 'overview' | 'revenue' | 'annual' | 'collections' | 'ratios' | 'entities'
 
@@ -75,7 +75,7 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
   const abortRef = useRef<AbortController | null>(null)
 
   const cacheKey = (p: PeriodDef) =>
-    [p.mode, p.year, p.month ?? '', p.quarter ?? '', p.half ?? '', p.comparison ?? 'previous', p.customFrom ?? '', p.customTo ?? ''].join('_')
+    [getDataVersion(), p.mode, p.year, p.month ?? '', p.quarter ?? '', p.half ?? '', p.comparison ?? 'previous', p.customFrom ?? '', p.customTo ?? ''].join('_')
 
   const fetchData = useCallback(async (p: PeriodDef, force = false) => {
     // Return instantly from client cache unless forced
@@ -144,11 +144,12 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Global Refresh button — clears client cache + force-fetches everything
+  // After a Sync Now elsewhere: drop client cache + re-read fresh DB data
+  // (force=false so it reads the just-synced PostgreSQL, not Zoho again)
   useEffect(() => {
     return onRefresh(() => {
       _clientCache.clear()
-      fetchData(period, true)
+      fetchData(period, false)
       if (annualData) fetchAnnual(true)
     })
   }, [period, annualData, fetchData, fetchAnnual])
@@ -269,13 +270,6 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
             <span className="hidden md:block text-xs text-gray-500">
               {session?.user?.name ?? session?.user?.email}
             </span>
-            <button
-              onClick={() => fetchData({ ...period })}
-              disabled={loading}
-              className="text-xs border border-black/[0.10] text-gray-500 hover:text-gray-900 hover:border-black/[0.20] px-3 py-1.5 rounded-lg transition disabled:opacity-40"
-            >
-              {loading ? 'Loading…' : '⟳ Refresh'}
-            </button>
             {(session?.user as any)?.role === 'admin' && (
               <a href="/admin/users" className="text-xs border border-black/[0.10] text-gray-500 hover:text-gray-900 hover:border-black/[0.20] px-3 py-1.5 rounded-lg transition">
                 Users

@@ -14,7 +14,7 @@ import {
   variance, varianceLabel, insightColor, insightIcon,
 } from '@/lib/financial-analytics'
 import { getFinancialPeriodLabel } from '@/lib/zoho-reports'
-import { onRefresh } from '@/lib/refresh-event'
+import { onRefresh, dispatchRefresh, bumpDataVersion } from '@/lib/refresh-event'
 import type {
   FinancialPeriod, PLStatement, BalanceSheetStatement, CashFlowStatement,
   ConsolidatedPL, ConsolidatedBS, ConsolidatedCF, FSLineItem, CFOInsight,
@@ -1239,6 +1239,8 @@ export function FinancialsClient() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [lastRefreshed, setLastRefreshed] = useState<string>('')
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string>('')
 
   function buildParams(extra: Record<string, string> = {}): string {
     const sp = new URLSearchParams({
@@ -1330,9 +1332,10 @@ export function FinancialsClient() {
     fetchData(activeTab)
   }, [fetchData, activeTab])
 
-  // Global Refresh — force re-fetch current tab
+  // After a Sync Now: re-read current tab from the freshly-synced cache
+  // (force=false → reads pg cache_store that the sync just populated)
   useEffect(() => {
-    return onRefresh(() => fetchData(activeTab, true))
+    return onRefresh(() => fetchData(activeTab, false))
   }, [activeTab, fetchData])
 
   function clearData() {
@@ -1358,6 +1361,31 @@ export function FinancialsClient() {
   const hasData = plConsolidated || bsConsolidated || cfConsolidated || plStatement || bsStatement || cfStatement
 
   const handlePrint = () => window.print()
+
+  // Sync Now — pulls fresh Zoho data for ALL THREE tabs + ALL entities into
+  // PostgreSQL, then invalidates every page's client cache and re-reads.
+  const handleSync = useCallback(async () => {
+    setSyncing(true)
+    setSyncMsg('Syncing all entities from Zoho…')
+    try {
+      const res  = await fetch('/api/sync/run?mode=incremental', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok || json.error) throw new Error(json.error || 'Sync failed')
+
+      // Invalidate all pages' client caches, then re-read fresh data.
+      // dispatchRefresh() triggers the onRefresh listener on THIS page too,
+      // so the Financial tab re-reads from the freshly-synced cache.
+      bumpDataVersion()
+      setSyncMsg(`Synced ${json.totalInvoices?.toLocaleString() ?? ''} invoices · ${json.elapsed}`)
+      dispatchRefresh()                  // re-reads AR, Executive Summary, and this page
+      setTimeout(() => setSyncMsg(''), 6000)
+    } catch (err: any) {
+      setSyncMsg(`Sync failed: ${err.message}`)
+      setTimeout(() => setSyncMsg(''), 8000)
+    } finally {
+      setSyncing(false)
+    }
+  }, [])
 
   return (
     <>
@@ -1609,12 +1637,17 @@ export function FinancialsClient() {
             </p>
           </div>
           <div className="flex items-center gap-2 print:hidden">
-            {lastRefreshed && (
+            {syncMsg && (
+              <span className="text-xs text-gray-500 max-w-[220px] truncate">{syncMsg}</span>
+            )}
+            {!syncMsg && lastRefreshed && (
               <span className="text-xs text-gray-400">Updated {new Date(lastRefreshed).toLocaleTimeString()}</span>
             )}
-            <button onClick={() => fetchData(activeTab, true)}
-              className="btn-3d-ghost px-3 py-1.5 rounded-lg text-xs font-medium border">
-              ↻ Refresh
+            <button onClick={handleSync} disabled={syncing}
+              title="Pull latest data from Zoho for AR Dashboard, Financial Statements and Executive Summary — all entities"
+              className="btn-3d-secondary px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50">
+              <span className={syncing ? 'animate-spin inline-block' : ''}>↻</span>
+              {syncing ? ' Syncing…' : ' Sync Now'}
             </button>
             <button onClick={handlePrint}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-hexa-gradient">
