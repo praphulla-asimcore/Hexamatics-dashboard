@@ -1268,14 +1268,13 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
                           {m.countries.map((c) => {
                             const cell = m.cells[r.code][c.code]
                             const v = val(cell)
-                            const isDiag = r.code === c.code
                             const intensity = v > 0 ? 0.08 + 0.32 * (v / maxCell) : 0
                             return (
                               <td key={c.code}
-                                className={`py-2 px-2 text-right tabular-nums ${isDiag ? 'text-gray-700' : v > 0 ? 'text-blue-200 font-medium' : 'text-gray-700'}`}
-                                style={v > 0 && !isDiag ? { backgroundColor: `rgba(59,130,246,${intensity})` } : {}}
+                                className={`py-2 px-2 text-right tabular-nums ${v > 0 ? 'text-blue-200 font-medium' : 'text-gray-700'}`}
+                                style={v > 0 ? { backgroundColor: `rgba(59,130,246,${intensity})` } : {}}
                                 title={cell.invoiceCount ? `${cell.invoiceCount} invoice(s)` : ''}>
-                                {isDiag ? '·' : fmtCell(v)}
+                                {fmtCell(v)}
                               </td>
                             )
                           })}
