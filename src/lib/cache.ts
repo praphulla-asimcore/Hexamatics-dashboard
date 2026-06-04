@@ -1,5 +1,5 @@
 import { fetchDashboard, fetchAnnualData } from './zoho-data'
-import { kvGet, kvSet } from './kv'
+import { pgGet as kvGet, pgSet as kvSet } from './pg-cache'
 import type { DashboardData, PeriodDef, AnnualYearData } from '@/types'
 
 const CACHE_TTL_MS      = 30 * 60 * 1000  // 30 minutes

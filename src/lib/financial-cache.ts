@@ -9,7 +9,7 @@
  * virtually always hit the KV cache and see sub-second page loads.
  */
 
-import { kvGet, kvSet } from './kv'
+import { pgGet as kvGet, pgSet as kvSet } from './pg-cache'
 import {
   fetchAllPL,
   fetchAllBS,
