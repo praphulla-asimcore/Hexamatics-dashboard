@@ -25,8 +25,10 @@ import type {
   FinancialPeriod,
 } from '@/types/financials'
 
-const TTL_MS      = 4 * 60 * 60 * 1000  // 4 hours (milliseconds, for in-memory)
-const TTL_SECONDS = 4 * 60 * 60          // 4 hours (seconds, for KV ex option)
+// 7 days — financial reports are warmed by the daily sync and stay served
+// from PostgreSQL between syncs (matches the invoice DB freshness window).
+const TTL_MS      = 7 * 24 * 60 * 60 * 1000  // in-memory L2
+const TTL_SECONDS = 7 * 24 * 60 * 60          // PostgreSQL L1
 
 // ── In-memory L2 cache (per Lambda instance) ──────────────────────────────────
 const plCache  = new Map<string, { data: PLStatement[];            at: number }>()
