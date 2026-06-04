@@ -31,11 +31,13 @@ async function warmFinancials(): Promise<string[]> {
   const month = new Date().getMonth() + 1
   const warmed: string[] = []
 
-  // Periods that map to the quick-select buttons users actually click
+  // The two periods that cover the default + most common views:
+  //   month/previous  → default load + Month button
+  //   year/previous   → Year button AND YTD button (buildFinParams maps ytd→year)
+  // Other periods (custom, rolling12) fetch live on first view, then cache 7 days.
   const periods: FinancialPeriod[] = [
-    { mode: 'year', year, comparison: 'previous' },
-    { mode: 'year', year, comparison: 'none' },
     { mode: 'month', year, month, comparison: 'previous' },
+    { mode: 'year',  year,        comparison: 'previous' },
   ]
 
   for (const p of periods) {

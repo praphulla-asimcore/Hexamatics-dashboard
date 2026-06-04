@@ -1366,18 +1366,25 @@ export function FinancialsClient() {
   // PostgreSQL, then invalidates every page's client cache and re-reads.
   const handleSync = useCallback(async () => {
     setSyncing(true)
-    setSyncMsg('Syncing all entities from Zoho…')
     try {
-      const res  = await fetch('/api/sync/run?mode=incremental', { method: 'POST' })
-      const json = await res.json()
-      if (!res.ok || json.error) throw new Error(json.error || 'Sync failed')
+      // Phase 1 — invoices (fast). Refreshes AR Dashboard + Exec Summary AR.
+      setSyncMsg('Syncing invoices (all entities)…')
+      const r1 = await fetch('/api/sync/run?mode=incremental&scope=invoices', { method: 'POST' })
+      const j1 = await r1.json()
+      if (!r1.ok || j1.error) throw new Error(j1.error || 'Invoice sync failed')
 
-      // Invalidate all pages' client caches, then re-read fresh data.
-      // dispatchRefresh() triggers the onRefresh listener on THIS page too,
-      // so the Financial tab re-reads from the freshly-synced cache.
       bumpDataVersion()
-      setSyncMsg(`Synced ${json.totalInvoices?.toLocaleString() ?? ''} invoices · ${json.elapsed}`)
-      dispatchRefresh()                  // re-reads AR, Executive Summary, and this page
+      dispatchRefresh()   // AR + Exec re-read the freshly-synced invoices now
+      setSyncMsg(`${j1.totalInvoices?.toLocaleString() ?? 0} invoices · refreshing financials…`)
+
+      // Phase 2 — financial statements (slower Zoho Reports API).
+      const r2 = await fetch('/api/sync/run?mode=incremental&scope=financials', { method: 'POST' })
+      const j2 = await r2.json()
+      if (!r2.ok || j2.error) throw new Error(j2.error || 'Financial sync failed')
+
+      bumpDataVersion()
+      dispatchRefresh()   // financials re-read from freshly-warmed cache
+      setSyncMsg(`Synced · ${j1.totalInvoices?.toLocaleString() ?? 0} invoices · financials updated`)
       setTimeout(() => setSyncMsg(''), 6000)
     } catch (err: any) {
       setSyncMsg(`Sync failed: ${err.message}`)
