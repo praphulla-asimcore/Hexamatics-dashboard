@@ -22,6 +22,8 @@ import {
   buildSegmentSummary,
 } from './zoho-data'
 import { getSyncStatus } from './zoho-sync'
+import { getCustomerType } from './customer-classification'
+import { getCounterpartyCountry, buildIntercoMatrix, IntercoItem } from './interco'
 import type {
   DashboardData, EntitySummary, GroupSummary, SegmentSummary,
   PeriodDef, ZohoInvoice,
@@ -135,6 +137,25 @@ export async function getDashboardFromDB(
       return { org, period: periodSum, comparison, arAging, topCustomers, ratios, monthlyTrend, interco, rpt }
     })
 
+    // Interco matrix — period-scoped, creditor (issuing org) × debtor (counterparty)
+    const intercoItems: IntercoItem[] = []
+    for (const org of ORGS) {
+      const all = byOrg.get(org.id) ?? []
+      for (const inv of all) {
+        if (inv.date < periodRange.from || inv.date > periodRange.to) continue
+        if (getCustomerType(inv.customer_name) !== 'interco') continue
+        const debtor = getCounterpartyCountry(inv.customer_name)
+        if (!debtor) continue
+        intercoItems.push({
+          creditorCountry: org.country,
+          debtorCountry:   debtor,
+          outstandingMyr:  inv.balance * org.fxToMyr,
+          totalMyr:        inv.total * org.fxToMyr,
+        })
+      }
+    }
+    const intercoMatrix = intercoItems.length ? buildIntercoMatrix(intercoItems) : undefined
+
     const sumMyr = (fn: (e: EntitySummary) => number) =>
       entities.reduce((s, e) => s + fn(e), 0)
 
@@ -177,6 +198,7 @@ export async function getDashboardFromDB(
       group,
       intercoGroup: sumSegment('interco'),
       rptGroup:     sumSegment('rpt'),
+      intercoMatrix,
       periodLabel:  getPeriodLabel(period),
       comparisonLabel: compPeriod ? getPeriodLabel(compPeriod) : '',
       lastRefreshed:   syncStatus.oldestSync!,

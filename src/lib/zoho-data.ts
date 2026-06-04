@@ -1,6 +1,7 @@
 import { zohoFetch } from './zoho-auth'
 import { ORGS } from './orgs'
 import { getCustomerType } from './customer-classification'
+import { getCounterpartyCountry, buildIntercoMatrix, IntercoItem } from './interco'
 import type {
   ZohoInvoice,
   EntitySummary,
@@ -320,7 +321,7 @@ async function fetchEntityData(
   periodRange: { from: string; to: string },
   comparisonRange: { from: string; to: string } | null,
   daysInPeriod: number
-): Promise<EntitySummary> {
+): Promise<{ summary: EntitySummary; intercoItems: IntercoItem[] }> {
   const wideFrom = [
     periodRange.from,
     comparisonRange?.from ?? periodRange.from,
@@ -354,7 +355,21 @@ async function fetchEntityData(
   const interco      = period3P.interco.length > 0 ? buildSegmentSummary(period3P.interco, org.fxToMyr) : undefined
   const rpt          = period3P.rpt.length > 0     ? buildSegmentSummary(period3P.rpt,     org.fxToMyr) : undefined
 
-  return { org, period, comparison, arAging, topCustomers, ratios, monthlyTrend: [], interco, rpt }
+  // Interco matrix items — creditor = this org, debtor = counterparty country
+  const intercoItems: IntercoItem[] = []
+  for (const inv of period3P.interco) {
+    const debtor = getCounterpartyCountry(inv.customer_name)
+    if (!debtor) continue
+    intercoItems.push({
+      creditorCountry: org.country,
+      debtorCountry:   debtor,
+      outstandingMyr:  inv.balance * org.fxToMyr,
+      totalMyr:        inv.total * org.fxToMyr,
+    })
+  }
+
+  const summary: EntitySummary = { org, period, comparison, arAging, topCustomers, ratios, monthlyTrend: [], interco, rpt }
+  return { summary, intercoItems }
 }
 
 // Separate trend fetch per entity — called after main dashboard renders.
@@ -394,9 +409,12 @@ export async function fetchDashboard(
   const daysInPeriod = differenceInDays(toDate, fromDate) + 1
 
   // Main fetch: period + comparison only. Trend is loaded separately (lazy).
-  const entities = await Promise.all(
+  const entityResults = await Promise.all(
     ORGS.map((org) => fetchEntityData(org, periodRange, comparisonRange, daysInPeriod))
   )
+  const entities = entityResults.map((r) => r.summary)
+  const intercoItems = entityResults.flatMap((r) => r.intercoItems)
+  const intercoMatrix = intercoItems.length ? buildIntercoMatrix(intercoItems) : undefined
 
   const sumMyr = (fn: (e: EntitySummary) => number) =>
     entities.reduce((s, e) => s + fn(e), 0)
@@ -455,6 +473,7 @@ export async function fetchDashboard(
     group,
     intercoGroup: sumSegment('interco'),
     rptGroup:     sumSegment('rpt'),
+    intercoMatrix,
     periodLabel:  getPeriodLabel(period),
     comparisonLabel: compLabel,
     lastRefreshed: new Date().toISOString(),

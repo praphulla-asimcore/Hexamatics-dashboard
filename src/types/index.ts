@@ -134,12 +134,29 @@ export interface GroupSummary {
   comparisonCollectionRate?: number
 }
 
+// ── Intercompany matrix (country × country) ──────────────────────────────────
+export interface IntercoMatrixCell {
+  outstandingMyr: number
+  totalMyr: number
+  invoiceCount: number
+}
+
+export interface IntercoMatrix {
+  countries: { code: string; label: string }[]          // ordered axis
+  cells: Record<string, Record<string, IntercoMatrixCell>> // cells[creditor][debtor]
+  rowTotals: Record<string, IntercoMatrixCell>           // by creditor
+  colTotals: Record<string, IntercoMatrixCell>           // by debtor
+  grandTotal: IntercoMatrixCell
+}
+
 export interface DashboardData {
   entities: EntitySummary[]
   group: GroupSummary
   // Group-level interco and RPT totals
   intercoGroup?: SegmentSummary
   rptGroup?: SegmentSummary
+  // Country-by-country intercompany AR matrix
+  intercoMatrix?: IntercoMatrix
   periodLabel: string
   comparisonLabel: string
   lastRefreshed: string

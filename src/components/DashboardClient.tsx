@@ -71,6 +71,7 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('executive')
   const [annualData, setAnnualData] = useState<AnnualYearData[] | null>(null)
   const [annualLoading, setAnnualLoading] = useState(false)
+  const [intercoView, setIntercoView] = useState<'outstanding' | 'total'>('outstanding')
 
   const abortRef = useRef<AbortController | null>(null)
 
@@ -164,7 +165,7 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
     fetchData(p)
   }
 
-  const { group, entities, periodLabel, comparisonLabel, lastRefreshed, intercoGroup, rptGroup } = data
+  const { group, entities, periodLabel, comparisonLabel, lastRefreshed, rptGroup, intercoMatrix } = data
 
   const revenueGrowth = group.comparisonTotalMyr && group.comparisonTotalMyr > 0
     ? ((group.totalMyr - group.comparisonTotalMyr) / group.comparisonTotalMyr) * 100
@@ -1209,60 +1210,102 @@ export function DashboardClient({ initialData, initialPeriod }: Props) {
           </div>
         )}
 
-      {/* ── Interco & RPT Panels ─────────────────────────────────────────── */}
-      {(intercoGroup || rptGroup) && (
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {/* ── Interco Matrix & RPT ─────────────────────────────────────────── */}
+      {(intercoMatrix || rptGroup) && (
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 pb-6 space-y-4">
 
-            {/* Interco */}
-            {intercoGroup && (
+          {/* Interco matrix — creditor × debtor, country by country */}
+          {intercoMatrix && (() => {
+            const m = intercoMatrix
+            const val = (c: { outstandingMyr: number; totalMyr: number }) =>
+              intercoView === 'outstanding' ? c.outstandingMyr : c.totalMyr
+            const fmtCell = (n: number) => {
+              if (!n) return '—'
+              const a = Math.abs(n)
+              const s = a >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : a >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : n.toFixed(0)
+              return s
+            }
+            const maxCell = Math.max(1, ...m.countries.flatMap(r => m.countries.map(c => val(m.cells[r.code][c.code]))))
+            return (
               <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-                <div className="px-5 py-3 border-b border-gray-800 bg-gray-800/40 flex items-center gap-2">
-                  <span className="inline-block w-2 h-2 rounded-full bg-blue-400" />
-                  <h2 className="text-xs font-semibold text-white uppercase tracking-wider">
-                    Interco AR — {periodLabel}
-                  </h2>
-                </div>
-                <div className="p-5">
-                  <div className="grid grid-cols-3 gap-4 mb-5">
-                    {[
-                      { label: 'Billed',       value: fmtMyr(intercoGroup.totalMyr) },
-                      { label: 'Outstanding',  value: fmtMyr(intercoGroup.outstandingMyr) },
-                      { label: 'Collected',    value: fmtMyr(intercoGroup.collectedMyr) },
-                    ].map(({ label, value }) => (
-                      <div key={label}>
-                        <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">{label}</p>
-                        <p className="text-lg font-bold text-white tabular-nums">{value}</p>
-                      </div>
+                <div className="px-5 py-3 border-b border-gray-800 bg-gray-800/40 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-block w-2 h-2 rounded-full bg-blue-400" />
+                    <h2 className="text-xs font-semibold text-white uppercase tracking-wider">
+                      Intercompany Matrix — {periodLabel}
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-1 bg-gray-800/60 rounded-lg p-0.5">
+                    {(['outstanding', 'total'] as const).map((v) => (
+                      <button key={v} onClick={() => setIntercoView(v)}
+                        className={`px-3 py-1 rounded-md text-[11px] font-semibold transition ${
+                          intercoView === v ? 'bg-blue-500/20 text-blue-300' : 'text-gray-500 hover:text-gray-300'
+                        }`}>
+                        {v === 'outstanding' ? 'Outstanding' : 'Total Billed'}
+                      </button>
                     ))}
                   </div>
-                  {intercoGroup.topCustomers.length > 0 && (
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-gray-500 border-b border-gray-800">
-                          <th className="text-left pb-1.5 font-medium">Entity</th>
-                          <th className="text-right pb-1.5 font-medium">Outstanding (MYR)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-800/50">
-                        {intercoGroup.topCustomers.filter(c => c.outstanding > 0).map((c) => (
-                          <tr key={c.name}>
-                            <td className="py-1.5 text-gray-300">{c.name}</td>
-                            <td className="py-1.5 text-right text-blue-300 tabular-nums font-medium">
-                              {fmtMyr(c.outstanding * (entities.find(e => e.interco?.topCustomers.some(x => x.name === c.name))?.org.fxToMyr ?? 1))}
-                            </td>
-                          </tr>
+                </div>
+                <div className="p-5 overflow-x-auto">
+                  <table className="w-full text-xs border-collapse">
+                    <thead>
+                      <tr className="text-gray-500">
+                        <th className="text-left py-2 px-2 font-medium sticky left-0 bg-gray-900">
+                          <span className="text-[10px] text-gray-600">Creditor ↓ / Debtor →</span>
+                        </th>
+                        {m.countries.map((c) => (
+                          <th key={c.code} className="text-right py-2 px-2 font-semibold text-gray-400 whitespace-nowrap">
+                            {c.label}
+                          </th>
                         ))}
-                      </tbody>
-                    </table>
-                  )}
+                        <th className="text-right py-2 px-2 font-bold text-gray-300 border-l border-gray-800">Total Owed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {m.countries.map((r) => (
+                        <tr key={r.code} className="border-t border-gray-800/50">
+                          <td className="py-2 px-2 font-semibold text-gray-300 whitespace-nowrap sticky left-0 bg-gray-900">{r.label}</td>
+                          {m.countries.map((c) => {
+                            const cell = m.cells[r.code][c.code]
+                            const v = val(cell)
+                            const isDiag = r.code === c.code
+                            const intensity = v > 0 ? 0.08 + 0.32 * (v / maxCell) : 0
+                            return (
+                              <td key={c.code}
+                                className={`py-2 px-2 text-right tabular-nums ${isDiag ? 'text-gray-700' : v > 0 ? 'text-blue-200 font-medium' : 'text-gray-700'}`}
+                                style={v > 0 && !isDiag ? { backgroundColor: `rgba(59,130,246,${intensity})` } : {}}
+                                title={cell.invoiceCount ? `${cell.invoiceCount} invoice(s)` : ''}>
+                                {isDiag ? '·' : fmtCell(v)}
+                              </td>
+                            )
+                          })}
+                          <td className="py-2 px-2 text-right tabular-nums font-bold text-white border-l border-gray-800">
+                            {fmtCell(val(m.rowTotals[r.code]))}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="border-t-2 border-gray-700 bg-gray-800/30">
+                        <td className="py-2 px-2 font-bold text-gray-300 sticky left-0 bg-gray-900">Total Owing</td>
+                        {m.countries.map((c) => (
+                          <td key={c.code} className="py-2 px-2 text-right tabular-nums font-bold text-gray-200">
+                            {fmtCell(val(m.colTotals[c.code]))}
+                          </td>
+                        ))}
+                        <td className="py-2 px-2 text-right tabular-nums font-extrabold text-blue-300 border-l border-gray-800">
+                          {fmtCell(val(m.grandTotal))}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                   <p className="text-[10px] text-gray-600 mt-3">
-                    {intercoGroup.invoiceCount} invoice{intercoGroup.invoiceCount !== 1 ? 's' : ''} · Excluded from main AR analysis
+                    Values in MYR ({intercoView === 'outstanding' ? 'unpaid balance' : 'total billed'}). Rows = entity owed (creditor), columns = entity owing (debtor). Excluded from main AR analysis.
                   </p>
                 </div>
               </div>
-            )}
+            )
+          })()}
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* RPT */}
             {rptGroup && (
               <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
