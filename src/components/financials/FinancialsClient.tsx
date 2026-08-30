@@ -13,7 +13,7 @@ import {
   generatePLInsights, generateBSInsights, generateCFInsights,
   variance, varianceLabel, insightColor, insightIcon,
 } from '@/lib/financial-analytics'
-import { getFinancialPeriodLabel } from '@/lib/zoho-reports'
+import { getFinancialPeriodLabel } from '@/lib/financial-period'
 import { onRefresh, dispatchRefresh, bumpDataVersion } from '@/lib/refresh-event'
 import type {
   FinancialPeriod, PLStatement, BalanceSheetStatement, CashFlowStatement,
