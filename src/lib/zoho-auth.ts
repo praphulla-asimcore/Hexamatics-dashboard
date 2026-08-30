@@ -156,9 +156,12 @@ async function acquireSlot(): Promise<void> {
 
 /**
  * Typed fetch wrapper for Zoho Books API.
- * - Enforces a global rate limit (one call per 1.1 s) to prevent 429s.
- * - Retries on 429 with a 60-second pause (enough to outlast the rate-limit
- *   window) rather than a short exponential backoff that rarely helps.
+ * - Enforces a global rate limit (one call per 300ms) to prevent 429s.
+ * - Retries on an ordinary per-minute 429 with a short pause.
+ * - Does NOT retry Zoho's account-level security block ("blocked for some
+ *   time" / code 43) — a short in-request retry can't outlast that window,
+ *   so retrying just burns function time and adds more traffic to an
+ *   account that's already being throttled.
  */
 export async function zohoFetch<T = unknown>(
   path: string,
@@ -180,8 +183,8 @@ export async function zohoFetch<T = unknown>(
 
     if (res.status === 429) {
       const body = await res.text()
-      if (attempt < maxAttempts - 1) {
-        // Wait 60 s — enough for Zoho's per-minute window to fully reset
+      const isSecurityBlock = body.includes('"code":43') || body.includes('blocked for some time')
+      if (!isSecurityBlock && attempt < maxAttempts - 1) {
         console.warn(`Zoho 429 on ${path} (attempt ${attempt + 1}/${maxAttempts}), waiting 5 s…`, body)
         await sleep(5_000)
         continue
