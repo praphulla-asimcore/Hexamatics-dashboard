@@ -96,13 +96,13 @@ function PeriodSelector({
 
   const btnBase = 'px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap'
   const btnActive = `${btnBase} bg-hexa-gradient text-white shadow-sm`
-  const btnInactive = `${btnBase} text-gray-500 hover:text-gray-900 hover:bg-black/[0.05]`
+  const btnInactive = `${btnBase} text-gray-500 hover:text-white hover:bg-white/[0.06]`
 
   return (
     <div className="flex flex-col gap-2 print:hidden">
       <div className="flex flex-wrap items-center gap-1.5">
         {/* Mode */}
-        <div className="flex items-center gap-0.5 bg-black/[0.04] rounded-xl p-1 flex-wrap">
+        <div className="flex items-center gap-0.5 bg-white/[0.06] rounded-xl p-1 flex-wrap">
           {(['month','quarter','half','year','custom'] as const).map((m) => (
             <button key={m} onClick={() => onChange({ ...period, mode: m })}
               className={period.mode === m ? btnActive : btnInactive}>
@@ -114,7 +114,7 @@ function PeriodSelector({
         {/* Year — hidden for custom */}
         {period.mode !== 'custom' && (
           <select value={period.year} onChange={(e) => onChange({ ...period, year: parseInt(e.target.value) })}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple">
+            className="rounded-lg px-3 py-1.5 text-xs font-medium border border-white/[0.12] bg-white/[0.05] text-gray-200 focus:outline-none focus:ring-2 focus:ring-hexa-purple">
             {years.map((y) => <option key={y}>{y}</option>)}
           </select>
         )}
@@ -123,14 +123,14 @@ function PeriodSelector({
         {period.mode === 'month' && (
           <select value={period.month ?? now.getMonth() + 1}
             onChange={(e) => onChange({ ...period, month: parseInt(e.target.value) })}
-            className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple">
+            className="rounded-lg px-3 py-1.5 text-xs font-medium border border-white/[0.12] bg-white/[0.05] text-gray-200 focus:outline-none focus:ring-2 focus:ring-hexa-purple">
             {MONTHS.slice(0, maxMonth).map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
           </select>
         )}
 
         {/* Quarter selector */}
         {period.mode === 'quarter' && (
-          <div className="flex gap-0.5 bg-black/[0.04] rounded-xl p-1">
+          <div className="flex gap-0.5 bg-white/[0.06] rounded-xl p-1">
             {([1,2,3,4] as const).map((q) => (
               <button key={q} disabled={q > maxQuarter} onClick={() => onChange({ ...period, quarter: q })}
                 className={period.quarter === q ? btnActive : `${btnInactive} disabled:opacity-30 disabled:cursor-not-allowed`}>
@@ -142,7 +142,7 @@ function PeriodSelector({
 
         {/* Half selector */}
         {period.mode === 'half' && (
-          <div className="flex gap-0.5 bg-black/[0.04] rounded-xl p-1">
+          <div className="flex gap-0.5 bg-white/[0.06] rounded-xl p-1">
             {([1,2] as const).map((h) => (
               <button key={h} disabled={h > maxHalf} onClick={() => onChange({ ...period, half: h })}
                 className={period.half === h ? btnActive : `${btnInactive} disabled:opacity-30 disabled:cursor-not-allowed`}>
@@ -161,7 +161,7 @@ function PeriodSelector({
                 onChange={(e) => setCustomFrom(e.target.value)}
                 min={MIN_DATE}
                 max={customTo || MAX_DATE}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple" />
+                className="rounded-lg px-3 py-1.5 text-xs font-medium border border-white/[0.12] bg-white/[0.05] text-gray-200 focus:outline-none focus:ring-2 focus:ring-hexa-purple" />
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500 font-medium">To</span>
@@ -169,7 +169,7 @@ function PeriodSelector({
                 onChange={(e) => setCustomTo(e.target.value)}
                 min={customFrom || MIN_DATE}
                 max={MAX_DATE}
-                className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple" />
+                className="rounded-lg px-3 py-1.5 text-xs font-medium border border-white/[0.12] bg-white/[0.05] text-gray-200 focus:outline-none focus:ring-2 focus:ring-hexa-purple" />
             </div>
             <button onClick={applyCustom} disabled={!customFrom || !customTo}
               className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-hexa-gradient text-white disabled:opacity-40 transition">
@@ -182,13 +182,13 @@ function PeriodSelector({
       {/* Comparison */}
       <div className="flex items-center gap-2">
         <span className="text-xs text-gray-500 font-medium">Compare:</span>
-        <div className="flex gap-0.5 bg-black/[0.04] rounded-lg p-0.5">
+        <div className="flex gap-0.5 bg-white/[0.06] rounded-lg p-0.5">
           {(['previous','yoy','none'] as const).map((c) => (
             <button key={c} onClick={() => onChange({ ...period, comparison: c })}
               className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
                 period.comparison === c
-                  ? 'bg-white shadow-sm text-gray-900 border border-black/[0.06]'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white/10 shadow-sm text-white border border-white/[0.10]'
+                  : 'text-gray-500 hover:text-gray-200'
               }`}>
               {c === 'previous' ? 'vs Prior Period' : c === 'yoy' ? 'vs Last Year' : 'No Compare'}
             </button>
@@ -224,19 +224,19 @@ function StatementRow({
     : null
 
   const rowClass = isTotal
-    ? 'font-semibold text-gray-900 border-t border-purple-100'
+    ? 'font-semibold text-white border-t border-purple-500/15'
     : hasSubs
-    ? 'font-medium text-gray-700'
+    ? 'font-medium text-gray-300'
     : 'text-gray-500'
 
   return (
     <>
-      <tr className={`${rowClass} hover:bg-purple-50/40 transition`}>
+      <tr className={`${rowClass} hover:bg-purple-500/10 transition`}>
         <td className="py-1.5 pr-4" style={{ paddingLeft: `${indent * 16 + 12}px` }}>
           <div className="flex items-center gap-1.5">
             {hasSubs && (
               <button onClick={() => setOpen((o) => !o)}
-                className="text-gray-600 hover:text-gray-400 text-xs w-4 flex-shrink-0">
+                className="text-gray-500 hover:text-gray-200 text-xs w-4 flex-shrink-0">
                 {open ? '▾' : '▸'}
               </button>
             )}
@@ -249,11 +249,11 @@ function StatementRow({
         <td className={`py-1.5 text-right tabular-nums text-gray-500 ${myr < 0 ? 'text-red-400/70' : ''}`}>
           {myr !== 0 ? fmtCurrency(isNegative ? -myr : myr, 'MYR') : '—'}
         </td>
-        <td className={`py-1.5 text-right tabular-nums text-gray-600`}>
+        <td className={`py-1.5 text-right tabular-nums text-gray-400`}>
           {compMyr !== null ? fmtCurrency(isNegative ? -compMyr : compMyr, 'MYR') : '—'}
         </td>
         <td className={`py-1.5 text-right tabular-nums text-xs ${
-          varPct !== null ? varColor(varPct, isNegative) : 'text-gray-600'
+          varPct !== null ? varColor(varPct, isNegative) : 'text-gray-400'
         }`}>
           {varPct !== null ? varianceLabel(varPct) : '—'}
         </td>
@@ -274,7 +274,7 @@ function StatementTable({ children, comparisonLabel }: { children: React.ReactNo
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-xs text-gray-500 border-b border-purple-100">
+          <tr className="text-xs text-gray-500 border-b border-purple-500/15">
             <th className="text-left pb-2 pl-3 font-medium">Account</th>
             <th className="text-right pb-2 font-medium">Local Currency</th>
             <th className="text-right pb-2 font-medium">MYR (FX Adj.)</th>
@@ -282,7 +282,7 @@ function StatementTable({ children, comparisonLabel }: { children: React.ReactNo
             <th className="text-right pb-2 font-medium">Change</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-purple-100/60">{children}</tbody>
+        <tbody className="divide-y divide-white/[0.06]">{children}</tbody>
       </table>
     </div>
   )
@@ -293,7 +293,7 @@ function StatementTable({ children, comparisonLabel }: { children: React.ReactNo
 function SectionRow({ label }: { label: string }) {
   return (
     <tr>
-      <td colSpan={5} className="py-3 pl-3 text-[10px] font-bold text-hexa-purple uppercase tracking-widest bg-purple-50/40 border-b border-purple-100">
+      <td colSpan={5} className="py-3 pl-3 text-[10px] font-bold text-hexa-purple uppercase tracking-widest bg-purple-500/10 border-b border-purple-500/15">
         {label}
       </td>
     </tr>
@@ -312,19 +312,19 @@ function TotalRow({
     ? ((myr - compMyr) / Math.abs(compMyr)) * 100 : undefined
 
   return (
-    <tr className={`font-bold border-t-2 ${highlight ? 'border-hexa-purple bg-purple-50/60' : 'border-purple-200/60 bg-gray-50/40'}`}>
-      <td className="py-2 pl-3 text-gray-900">{label}</td>
-      <td className={`py-2 text-right tabular-nums ${amount < 0 ? 'text-red-400' : 'text-gray-900'}`}>
+    <tr className={`font-bold border-t-2 ${highlight ? 'border-hexa-purple bg-purple-500/10' : 'border-purple-500/20 bg-white/[0.03]'}`}>
+      <td className="py-2 pl-3 text-white">{label}</td>
+      <td className={`py-2 text-right tabular-nums ${amount < 0 ? 'text-red-400' : 'text-white'}`}>
         {fmtCurrency(isNegative ? -amount : amount, currency)}
       </td>
-      <td className={`py-2 text-right tabular-nums ${myr < 0 ? 'text-red-400' : highlight ? 'text-hexa-purple' : 'text-gray-700'}`}>
+      <td className={`py-2 text-right tabular-nums ${myr < 0 ? 'text-red-400' : highlight ? 'text-hexa-purple' : 'text-gray-300'}`}>
         {fmtCurrency(isNegative ? -myr : myr, 'MYR')}
       </td>
       <td className="py-2 text-right tabular-nums text-gray-500">
         {compMyr !== undefined ? fmtCurrency(isNegative ? -compMyr : compMyr, 'MYR') : '—'}
       </td>
       <td className={`py-2 text-right tabular-nums text-sm ${
-        varPct !== undefined ? varColor(varPct, isNegative) : 'text-gray-600'
+        varPct !== undefined ? varColor(varPct, isNegative) : 'text-gray-400'
       }`}>
         {varPct !== undefined ? varianceLabel(varPct) : '—'}
       </td>
@@ -360,16 +360,16 @@ const CHART_OPTIONS: any = {
     legend: {
       position: 'top',
       labels: {
-        color: '#374151', font: { size: 11 },
+        color: '#cbd5e1', font: { size: 11 },
         boxWidth: 10, boxHeight: 10, padding: 14,
       },
     },
     tooltip: {
-      backgroundColor: 'rgba(255,255,255,0.97)',
-      borderColor: 'rgba(139,24,232,0.18)',
+      backgroundColor: 'rgba(17,17,26,0.96)',
+      borderColor: 'rgba(139,24,232,0.30)',
       borderWidth: 1,
-      titleColor: '#0f172a',
-      bodyColor: '#374151',
+      titleColor: '#f8fafc',
+      bodyColor: '#cbd5e1',
       padding: 10,
       cornerRadius: 10,
       callbacks: {
@@ -379,13 +379,13 @@ const CHART_OPTIONS: any = {
   },
   scales: {
     x: {
-      ticks: { color: '#64748b', font: { size: 11 } },
-      grid: { color: 'rgba(139,24,232,0.06)' },
+      ticks: { color: '#94a3b8', font: { size: 11 } },
+      grid: { color: 'rgba(139,24,232,0.10)' },
       border: { display: false },
     },
     y: {
       ticks: {
-        color: '#64748b', font: { size: 11 },
+        color: '#94a3b8', font: { size: 11 },
         callback: (v: any) => {
           const abs = Math.abs(v)
           if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
@@ -393,7 +393,7 @@ const CHART_OPTIONS: any = {
           return v
         },
       },
-      grid: { color: 'rgba(139,24,232,0.06)' },
+      grid: { color: 'rgba(139,24,232,0.10)' },
       border: { display: false },
     },
   },
@@ -406,14 +406,14 @@ const DONUT_OPTIONS: any = {
   plugins: {
     legend: {
       position: 'bottom',
-      labels: { color: '#374151', font: { size: 10 }, boxWidth: 10, boxHeight: 10, padding: 8 },
+      labels: { color: '#cbd5e1', font: { size: 10 }, boxWidth: 10, boxHeight: 10, padding: 8 },
     },
     tooltip: {
-      backgroundColor: 'rgba(255,255,255,0.97)',
-      borderColor: 'rgba(139,24,232,0.18)',
+      backgroundColor: 'rgba(17,17,26,0.96)',
+      borderColor: 'rgba(139,24,232,0.30)',
       borderWidth: 1,
-      titleColor: '#0f172a',
-      bodyColor: '#374151',
+      titleColor: '#f8fafc',
+      bodyColor: '#cbd5e1',
       padding: 10,
       cornerRadius: 10,
       callbacks: {
@@ -488,7 +488,7 @@ function PLView({ statement, compLabel }: { statement: PLStatement; compLabel: s
 
       {/* FX Note */}
       {currency !== 'MYR' && (
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-gray-400">
           FX rate (avg): 1 {currency} = {fxRate.toFixed(4)} MYR (IAS 21 average rate for P&L)
         </p>
       )}
@@ -589,7 +589,7 @@ function BSView({ statement, compLabel }: { statement: BalanceSheetStatement; co
       </div>
 
       {currency !== 'MYR' && (
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-gray-400">
           FX rate (closing): 1 {currency} = {fxRate.toFixed(4)} MYR (IAS 21 closing rate for BS)
         </p>
       )}
@@ -679,7 +679,7 @@ function CFView({ statement, compLabel }: { statement: CashFlowStatement; compLa
       </div>
 
       {currency !== 'MYR' && (
-        <p className="text-xs text-gray-600">
+        <p className="text-xs text-gray-400">
           FX rate (avg): 1 {currency} = {fxRate.toFixed(4)} MYR (IAS 21 average rate)
         </p>
       )}
@@ -830,20 +830,20 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
       </div>
 
       {/* Charts row */}
-      <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5">
+      <div className="bg-white/[0.03] backdrop-blur-md border border-white/[0.08] rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-gray-800">Revenue, GP & Net Profit by Entity</h3>
+          <h3 className="text-sm font-semibold text-gray-100">Revenue, GP & Net Profit by Entity</h3>
           <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">MYR</span>
         </div>
         <Bar data={barData} options={CHART_OPTIONS} height={120} />
       </div>
 
       {/* P&L Cascade */}
-      <div className="pl-cascade bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+      <div className="pl-cascade bg-white/[0.03] backdrop-blur-md border border-white/[0.08] rounded-2xl overflow-hidden">
         <div className="section-accent-bar" />
         <div className="p-5">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="text-sm font-semibold text-gray-800">P&L Cascade — Group Consolidated (MYR)</h3>
+            <h3 className="text-sm font-semibold text-gray-100">P&L Cascade — Group Consolidated (MYR)</h3>
             {cg && <span className="text-[10px] text-gray-400 font-medium">vs prior period shown in summary table below</span>}
           </div>
           <div className="space-y-3">
@@ -853,8 +853,8 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
               const textOnBar = barPct > 35
               return (
                 <div key={item.label} className="flex items-center gap-4">
-                  <div className="w-24 text-xs font-semibold text-gray-600 text-right shrink-0">{item.label}</div>
-                  <div className="flex-1 relative h-9 rounded-lg overflow-hidden bg-black/[0.04]">
+                  <div className="w-24 text-xs font-semibold text-gray-400 text-right shrink-0">{item.label}</div>
+                  <div className="flex-1 relative h-9 rounded-lg overflow-hidden bg-white/[0.06]">
                     <div
                       className="h-full rounded-lg transition-all duration-700 ease-out"
                       style={{
@@ -899,34 +899,34 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
 
       {/* Revenue & COGS breakdown */}
       {revItems.length > 0 && (
-        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+        <div className="bg-white/[0.03] backdrop-blur-md border border-white/[0.08] rounded-2xl overflow-hidden">
           <div className="section-accent-bar" />
           <div className="p-5">
-            <h3 className="text-sm font-semibold text-gray-800 mb-5">Revenue, COGS & Gross Profit by Account</h3>
+            <h3 className="text-sm font-semibold text-gray-100 mb-5">Revenue, COGS & Gross Profit by Account</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Revenue */}
               <div>
                 <p className="text-[10px] font-bold text-hexa-purple uppercase tracking-widest mb-3">Revenue Breakdown</p>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-gray-500 border-b border-purple-100">
+                    <tr className="text-xs text-gray-500 border-b border-purple-500/15">
                       <th className="text-left pb-2 font-medium">Account</th>
                       <th className="text-right pb-2 font-medium">MYR</th>
                       <th className="text-right pb-2 font-medium">% Rev</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-purple-50">
+                  <tbody className="divide-y divide-white/[0.06]">
                     {revItems.map((item) => {
                       const pct = g.totalRevenueMyr > 0 ? (item.myr / g.totalRevenueMyr) * 100 : 0
                       return (
-                        <tr key={item.name} className="hover:bg-purple-50/50 transition">
-                          <td className="py-2 text-gray-700 font-medium">{item.name}</td>
-                          <td className="py-2 text-right tabular-nums text-gray-900 font-semibold">{fmtCurrency(item.myr)}</td>
+                        <tr key={item.name} className="hover:bg-purple-500/15 transition">
+                          <td className="py-2 text-gray-300 font-medium">{item.name}</td>
+                          <td className="py-2 text-right tabular-nums text-white font-semibold">{fmtCurrency(item.myr)}</td>
                           <td className="py-2 text-right tabular-nums text-gray-500 text-xs">{pct.toFixed(1)}%</td>
                         </tr>
                       )
                     })}
-                    <tr className="font-bold border-t-2 border-hexa-purple/30 bg-purple-50/40">
+                    <tr className="font-bold border-t-2 border-hexa-purple/30 bg-purple-500/10">
                       <td className="py-2.5 text-hexa-purple pl-1">Total Revenue</td>
                       <td className="py-2.5 text-right tabular-nums text-hexa-purple">{fmtCurrency(g.totalRevenueMyr)}</td>
                       <td className="py-2.5 text-right text-gray-400 text-xs">100%</td>
@@ -937,39 +937,39 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
 
               {/* COGS + GP */}
               <div>
-                <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-3">COGS Breakdown</p>
+                <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-3">COGS Breakdown</p>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-xs text-gray-500 border-b border-red-100/80">
+                    <tr className="text-xs text-gray-500 border-b border-red-500/20">
                       <th className="text-left pb-2 font-medium">Account</th>
                       <th className="text-right pb-2 font-medium">MYR</th>
                       <th className="text-right pb-2 font-medium">% Rev</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-red-50/80">
+                  <tbody className="divide-y divide-red-500/10">
                     {cogsItems.length > 0 ? cogsItems.map((item) => {
                       const pct = g.totalRevenueMyr > 0 ? (item.myr / g.totalRevenueMyr) * 100 : 0
                       return (
-                        <tr key={item.name} className="hover:bg-red-50/40 transition">
-                          <td className="py-2 text-gray-700 font-medium">{item.name}</td>
-                          <td className="py-2 text-right tabular-nums text-red-600 font-semibold">({fmtCurrency(item.myr)})</td>
+                        <tr key={item.name} className="hover:bg-red-500/10 transition">
+                          <td className="py-2 text-gray-300 font-medium">{item.name}</td>
+                          <td className="py-2 text-right tabular-nums text-red-400 font-semibold">({fmtCurrency(item.myr)})</td>
                           <td className="py-2 text-right tabular-nums text-gray-500 text-xs">{pct.toFixed(1)}%</td>
                         </tr>
                       )
                     }) : (
                       <tr><td colSpan={3} className="py-3 text-xs text-gray-400 italic">No COGS data available</td></tr>
                     )}
-                    <tr className="font-bold border-t-2 border-red-300/50">
-                      <td className="py-2 text-gray-700">Total COGS</td>
-                      <td className="py-2 text-right tabular-nums text-red-500">({fmtCurrency(g.totalCogsMyr)})</td>
+                    <tr className="font-bold border-t-2 border-red-500/30">
+                      <td className="py-2 text-gray-300">Total COGS</td>
+                      <td className="py-2 text-right tabular-nums text-red-400">({fmtCurrency(g.totalCogsMyr)})</td>
                       <td className="py-2 text-right text-gray-400 text-xs">
                         {g.totalRevenueMyr > 0 ? `${(g.totalCogsMyr / g.totalRevenueMyr * 100).toFixed(1)}%` : '—'}
                       </td>
                     </tr>
-                    <tr className="font-bold border-t-2 border-emerald-300/50 bg-emerald-50/40">
-                      <td className="py-2.5 text-emerald-700 pl-1">Gross Profit</td>
-                      <td className="py-2.5 text-right tabular-nums text-emerald-700">{fmtCurrency(g.grossProfitMyr)}</td>
-                      <td className="py-2.5 text-right text-emerald-600 text-xs font-bold">{g.grossMarginPct.toFixed(1)}%</td>
+                    <tr className="font-bold border-t-2 border-emerald-500/30 bg-emerald-500/10">
+                      <td className="py-2.5 text-emerald-400 pl-1">Gross Profit</td>
+                      <td className="py-2.5 text-right tabular-nums text-emerald-400">{fmtCurrency(g.grossProfitMyr)}</td>
+                      <td className="py-2.5 text-right text-emerald-400 text-xs font-bold">{g.grossMarginPct.toFixed(1)}%</td>
                     </tr>
                   </tbody>
                 </table>
@@ -980,14 +980,14 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
       )}
 
       {/* Entity breakdown table */}
-      <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+      <div className="bg-white/[0.03] backdrop-blur-md border border-white/[0.08] rounded-2xl overflow-hidden">
         <div className="section-accent-bar" />
         <div className="p-5">
-          <h3 className="text-sm font-semibold text-gray-800 mb-4">Entity Performance Breakdown</h3>
+          <h3 className="text-sm font-semibold text-gray-100 mb-4">Entity Performance Breakdown</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-[10px] text-gray-500 border-b border-purple-100 uppercase tracking-wider">
+                <tr className="text-[10px] text-gray-500 border-b border-purple-500/15 uppercase tracking-wider">
                   <th className="text-left pb-2.5 font-medium">Entity</th>
                   <th className="text-right pb-2.5 font-medium">Revenue (Local)</th>
                   <th className="text-right pb-2.5 font-medium">Revenue (MYR)</th>
@@ -998,13 +998,13 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
                   <th className="text-right pb-2.5 font-medium">Rev Share</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-purple-50">
+              <tbody className="divide-y divide-white/[0.06]">
                 {entities.map((e, i) => {
                   const revMyr = e.data.totalRevenue * e.fxRate
                   const share = g.totalRevenueMyr > 0 ? (revMyr / g.totalRevenueMyr) * 100 : 0
                   return (
-                    <tr key={e.orgId} className="hover:bg-purple-50/40 transition">
-                      <td className="py-2.5 font-semibold text-gray-800">
+                    <tr key={e.orgId} className="hover:bg-purple-500/10 transition">
+                      <td className="py-2.5 font-semibold text-gray-100">
                         <div className="flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full flex-shrink-0 ring-1 ring-white"
                             style={{ backgroundColor: ENTITY_COLORS[i % ENTITY_COLORS.length] }} />
@@ -1014,19 +1014,19 @@ function ConsolidatedPLView({ data, insights }: { data: ConsolidatedPL; insights
                       <td className="py-2.5 text-right text-gray-500">
                         {e.error ? '—' : fmtCurrency(e.data.totalRevenue, e.currency)}
                       </td>
-                      <td className="py-2.5 text-right font-semibold text-gray-800">
+                      <td className="py-2.5 text-right font-semibold text-gray-100">
                         {e.error ? <span className="text-red-400">Error</span> : fmtCurrency(revMyr)}
                       </td>
-                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.grossMargin < 20 ? 'text-red-400' : 'text-gray-700'}`}>
+                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.grossMargin < 20 ? 'text-red-400' : 'text-gray-300'}`}>
                         {e.error ? '—' : fmtPct(e.data.grossMargin)}
                       </td>
-                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.ebitdaMargin < 0 ? 'text-red-400' : 'text-gray-700'}`}>
+                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.ebitdaMargin < 0 ? 'text-red-400' : 'text-gray-300'}`}>
                         {e.error ? '—' : fmtPct(e.data.ebitdaMargin)}
                       </td>
-                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.netMargin < 0 ? 'text-red-400' : 'text-emerald-600'}`}>
+                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.netMargin < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                         {e.error ? '—' : fmtPct(e.data.netMargin)}
                       </td>
-                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.netProfit * e.fxRate < 0 ? 'text-red-400' : 'text-gray-800'}`}>
+                      <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.netProfit * e.fxRate < 0 ? 'text-red-400' : 'text-gray-100'}`}>
                         {e.error ? '—' : fmtCurrency(e.data.netProfit * e.fxRate)}
                       </td>
                       <td className="py-2.5 text-right text-gray-500">{fmtPct(share)}</td>
@@ -1060,8 +1060,8 @@ function ConsolidatedBSView({ data, insights }: { data: ConsolidatedBS; insights
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5 flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-gray-800">Capital Structure</h3>
+        <div className="bg-white/[0.03] backdrop-blur-md border border-white/[0.08] rounded-2xl p-5 flex flex-col gap-2">
+          <h3 className="text-sm font-semibold text-gray-100">Capital Structure</h3>
           <Doughnut
             data={{
               labels: ['Equity', 'Total Liabilities'],
@@ -1078,11 +1078,11 @@ function ConsolidatedBSView({ data, insights }: { data: ConsolidatedBS; insights
           <div className="text-xs text-gray-500 text-center font-medium">D/E Ratio: {g.debtToEquity.toFixed(2)}x</div>
         </div>
 
-        <div className="lg:col-span-2 bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5 overflow-x-auto">
-          <h3 className="text-sm font-semibold text-gray-800 mb-4">Entity Balance Sheet Summary (MYR)</h3>
+        <div className="lg:col-span-2 bg-white/[0.03] backdrop-blur-md border border-white/[0.08] rounded-2xl p-5 overflow-x-auto">
+          <h3 className="text-sm font-semibold text-gray-100 mb-4">Entity Balance Sheet Summary (MYR)</h3>
           <table className="w-full text-xs">
             <thead>
-              <tr className="text-[10px] text-gray-500 border-b border-purple-100 uppercase tracking-wider">
+              <tr className="text-[10px] text-gray-500 border-b border-purple-500/15 uppercase tracking-wider">
                 <th className="text-left pb-2.5 font-medium">Entity</th>
                 <th className="text-right pb-2.5 font-medium">Total Assets</th>
                 <th className="text-right pb-2.5 font-medium">Total Liab.</th>
@@ -1091,19 +1091,19 @@ function ConsolidatedBSView({ data, insights }: { data: ConsolidatedBS; insights
                 <th className="text-right pb-2.5 font-medium">D/E</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-purple-50">
+            <tbody className="divide-y divide-white/[0.06]">
               {entities.map((e) => (
-                <tr key={e.orgId} className="hover:bg-purple-50/40 transition">
-                  <td className="py-2.5 font-semibold text-gray-800">{e.orgShort}</td>
-                  <td className="py-2.5 text-right text-gray-700">{e.error ? '—' : fmtCurrency(e.data.totalAssets * e.fxRate)}</td>
-                  <td className="py-2.5 text-right text-gray-700">{e.error ? '—' : fmtCurrency(e.data.totalLiabilities * e.fxRate)}</td>
-                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.totalEquity < 0 ? 'text-red-400' : 'text-emerald-600'}`}>
+                <tr key={e.orgId} className="hover:bg-purple-500/10 transition">
+                  <td className="py-2.5 font-semibold text-gray-100">{e.orgShort}</td>
+                  <td className="py-2.5 text-right text-gray-300">{e.error ? '—' : fmtCurrency(e.data.totalAssets * e.fxRate)}</td>
+                  <td className="py-2.5 text-right text-gray-300">{e.error ? '—' : fmtCurrency(e.data.totalLiabilities * e.fxRate)}</td>
+                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.totalEquity < 0 ? 'text-red-400' : 'text-emerald-400'}`}>
                     {e.error ? '—' : fmtCurrency(e.data.totalEquity * e.fxRate)}
                   </td>
-                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.currentRatio < 1 ? 'text-red-400' : 'text-gray-700'}`}>
+                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.currentRatio < 1 ? 'text-red-400' : 'text-gray-300'}`}>
                     {e.error ? '—' : `${e.data.currentRatio.toFixed(2)}x`}
                   </td>
-                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.debtToEquity > 2 ? 'text-amber-500' : 'text-gray-700'}`}>
+                  <td className={`py-2.5 text-right font-semibold ${!e.error && e.data.debtToEquity > 2 ? 'text-amber-400' : 'text-gray-300'}`}>
                     {e.error ? '—' : `${e.data.debtToEquity.toFixed(2)}x`}
                   </td>
                 </tr>
@@ -1179,10 +1179,10 @@ function ConsolidatedCFView({ data, insights }: { data: ConsolidatedCF; insights
 
       <div className="chart-grid grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Cascade */}
-        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl overflow-hidden">
+        <div className="bg-white/[0.03] backdrop-blur-md border border-white/[0.08] rounded-2xl overflow-hidden">
           <div className="section-accent-bar" />
           <div className="p-5">
-            <h3 className="text-sm font-semibold text-gray-800 mb-5">Cash Flow Summary (MYR)</h3>
+            <h3 className="text-sm font-semibold text-gray-100 mb-5">Cash Flow Summary (MYR)</h3>
             <div className="space-y-3">
               {cfSummary.map((item) => {
                 const barPct = (Math.abs(item.value) / maxCFVal) * 100
@@ -1190,8 +1190,8 @@ function ConsolidatedCFView({ data, insights }: { data: ConsolidatedCF; insights
                 const textOnBar = barPct > 35
                 return (
                   <div key={item.label} className="flex items-center gap-3">
-                    <div className="w-24 text-xs font-semibold text-gray-600 text-right shrink-0">{item.label}</div>
-                    <div className="flex-1 relative h-9 rounded-lg overflow-hidden bg-black/[0.04]">
+                    <div className="w-24 text-xs font-semibold text-gray-400 text-right shrink-0">{item.label}</div>
+                    <div className="flex-1 relative h-9 rounded-lg overflow-hidden bg-white/[0.06]">
                       <div className="h-full rounded-lg transition-all duration-700 ease-out"
                         style={{
                           width: `${Math.max(barPct, 1)}%`,
@@ -1212,8 +1212,8 @@ function ConsolidatedCFView({ data, insights }: { data: ConsolidatedCF; insights
         </div>
 
         {/* Entity bar chart */}
-        <div className="bg-white/70 backdrop-blur-md border border-purple-100/60 rounded-2xl p-5">
-          <h3 className="text-sm font-semibold text-gray-800 mb-4">Cash Flow by Entity (MYR)</h3>
+        <div className="bg-white/[0.03] backdrop-blur-md border border-white/[0.08] rounded-2xl p-5">
+          <h3 className="text-sm font-semibold text-gray-100 mb-4">Cash Flow by Entity (MYR)</h3>
           <Bar data={cfBarData} options={CHART_OPTIONS} height={220} />
         </div>
       </div>
@@ -1474,15 +1474,22 @@ export function FinancialsClient() {
 
           /* ── Semi-transparent overlays → transparent ─────────────────── */
           [class*="bg-black\\/"],
+          [class*="bg-white\\/\\["],
           [class*="bg-purple-50\\/"],
+          [class*="bg-purple-500\\/"],
           [class*="bg-emerald-50\\/"],
-          [class*="bg-red-50\\/"] {
+          [class*="bg-emerald-500\\/"],
+          [class*="bg-red-50\\/"],
+          [class*="bg-red-500\\/"],
+          [class*="bg-amber-500\\/"] {
             background: transparent !important;
           }
 
           /* ── Borders ─────────────────────────────────────────────────── */
           [class*="border-purple-"],
           [class*="border-black\\/"],
+          [class*="border-white\\/"],
+          [class*="divide-white\\/"],
           [class*="border-gray-7"],
           [class*="border-gray-8"] {
             border-color: #d1d5db !important;
@@ -1555,28 +1562,32 @@ export function FinancialsClient() {
           tbody tr:last-child { border-bottom: none !important; }
 
           /* ── Table row highlights (total / gross profit rows) ────────── */
-          [class*="border-t-2"][class*="bg-purple-50"] {
+          [class*="border-t-2"][class*="bg-purple-50"],
+          [class*="border-t-2"][class*="bg-purple-500"] {
             background: #f5f3ff !important;
             border-top: 1.5pt solid #8B18E8 !important;
           }
-          [class*="border-t-2"][class*="bg-emerald-50"] {
+          [class*="border-t-2"][class*="bg-emerald-50"],
+          [class*="border-t-2"][class*="bg-emerald-500"] {
             background: #ecfdf5 !important;
             border-top: 1.5pt solid #10b981 !important;
           }
-          [class*="border-t-2"][class*="bg-gray-50"] {
+          [class*="border-t-2"][class*="bg-gray-50"],
+          [class*="border-t-2"][class*="bg-white\\/\\["] {
             background: #f9fafb !important;
           }
 
           /* ── Table dividers ──────────────────────────────────────────── */
           [class*="divide-purple-"] > * + * { border-top: 0.3pt solid #ede9fe !important; }
+          [class*="divide-white\\/"] > * + * { border-top: 0.3pt solid #f3f4f6 !important; }
           [class*="divide-gray-"]   > * + * { border-top: 0.3pt solid #f3f4f6 !important; }
           [class*="divide-red-"]    > * + * { border-top: 0.3pt solid #fee2e2 !important; }
 
           /* ── Statement-specific rows ─────────────────────────────────── */
-          .border-t.border-purple-100 { border-top: 0.5pt solid #ddd6fe !important; }
-          .bg-purple-50\\/40, .bg-purple-50\\/60 { background: #f5f3ff !important; }
-          .bg-emerald-50\\/40 { background: #ecfdf5 !important; }
-          .bg-red-50\\/40 { background: #fff1f2 !important; }
+          .border-t.border-purple-500\\/15 { border-top: 0.5pt solid #ddd6fe !important; }
+          .bg-purple-500\\/10 { background: #f5f3ff !important; }
+          .bg-emerald-500\\/10 { background: #ecfdf5 !important; }
+          .bg-red-500\\/10 { background: #fff1f2 !important; }
 
           /* ── Cascade bars — inline styles print with color-adjust ─── */
           /* Already handled by print-color-adjust: exact above          */
@@ -1642,11 +1653,11 @@ export function FinancialsClient() {
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 py-6 space-y-5">
 
         {/* Header */}
-        <div className="print:hidden flex flex-wrap items-start justify-between gap-4 bg-white/70 backdrop-blur-xl rounded-2xl border border-black/[0.06] p-5 shadow-sm">
+        <div className="print:hidden flex flex-wrap items-start justify-between gap-4 bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/[0.08] p-5 shadow-sm">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <div className="w-2 h-6 rounded-full bg-hexa-gradient" />
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Financial Statements</h1>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Financial Statements</h1>
             </div>
             <p className="text-sm text-gray-500 ml-4">
               {periodLabel} · Consolidated in MYR · IAS 21 compliant
@@ -1681,7 +1692,7 @@ export function FinancialsClient() {
             className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
               view === 'consolidated'
                 ? 'bg-hexa-gradient text-white'
-                : 'bg-white/70 border border-black/[0.07] text-gray-600 hover:text-gray-900'
+                : 'bg-white/[0.04] border border-white/[0.08] text-gray-400 hover:text-white'
             }`}>
             Group Consolidated (MYR)
           </button>
@@ -1690,7 +1701,7 @@ export function FinancialsClient() {
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
                 view === org.id
                   ? 'text-white'
-                  : 'bg-white/70 border border-black/[0.07] text-gray-600 hover:text-gray-900'
+                  : 'bg-white/[0.04] border border-white/[0.08] text-gray-400 hover:text-white'
               }`}
               style={view === org.id ? { backgroundColor: ENTITY_COLORS[i % ENTITY_COLORS.length] } : {}}>
               {org.short}
@@ -1699,13 +1710,13 @@ export function FinancialsClient() {
         </div>
 
         {/* Statement Tabs */}
-        <div className="flex gap-1.5 p-1.5 bg-black/[0.04] rounded-xl print:hidden">
+        <div className="flex gap-1.5 p-1.5 bg-white/[0.06] rounded-xl print:hidden">
           {(['pl','bs','cf'] as TabType[]).map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
               className={`px-5 py-2 text-sm font-semibold rounded-lg transition-all ${
                 activeTab === t
-                  ? 'bg-white shadow-sm text-gray-900 border border-black/[0.06]'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white/10 shadow-sm text-white border border-white/[0.10]'
+                  : 'text-gray-500 hover:text-gray-200'
               }`}>
               {t === 'pl' ? 'Profit & Loss' : t === 'bs' ? 'Balance Sheet' : 'Cash Flow'}
             </button>
@@ -1717,22 +1728,22 @@ export function FinancialsClient() {
           <div className="flex items-start justify-between border-b-2 border-hexa-purple pb-4 mb-4">
             <div>
               <p className="text-xs font-bold text-hexa-purple uppercase tracking-widest mb-1">Hexamatics Group</p>
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-2xl font-bold text-white">
                 {activeTab === 'pl' ? 'Profit & Loss Statement' : activeTab === 'bs' ? 'Balance Sheet' : 'Cash Flow Statement'}
               </h2>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-400 mt-1">
                 {view === 'consolidated' ? 'Group Consolidated (MYR)' : ORGS.find((o) => o.id === view)?.name ?? view}
               </p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-gray-900">{periodLabel}</p>
+              <p className="text-sm font-semibold text-white">{periodLabel}</p>
               {compLabel && <p className="text-xs text-gray-500">Comparison: {compLabel}</p>}
               <p className="text-xs text-gray-500 mt-1">Generated {new Date().toLocaleDateString('en-MY', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
             </div>
           </div>
           <div className="flex items-center justify-between text-xs text-gray-500">
             <span>FX rates sourced from Bank Negara Malaysia · IAS 21 compliant · All amounts in MYR unless stated</span>
-            <span className="font-semibold text-gray-700 uppercase tracking-wide">Confidential — Management Use Only</span>
+            <span className="font-semibold text-gray-300 uppercase tracking-wide">Confidential — Management Use Only</span>
           </div>
         </div>
 
@@ -1819,7 +1830,7 @@ export function FinancialsClient() {
 
             {/* No data state */}
             {!loading && !error && !hasData && (
-              <div className="text-center py-20 text-gray-600">
+              <div className="text-center py-20 text-gray-400">
                 <p className="text-4xl mb-3">📊</p>
                 <p className="font-medium text-gray-400">Select a period to load financial statements</p>
                 <p className="text-sm mt-1">Data is fetched live from Zoho Books</p>

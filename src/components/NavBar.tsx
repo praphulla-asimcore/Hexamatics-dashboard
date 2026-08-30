@@ -14,7 +14,7 @@ export function NavBar() {
   const { data: session } = useSession()
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/70 backdrop-blur-2xl border-b border-black/[0.07] print:hidden">
+    <nav className="sticky top-0 z-50 bg-gray-950/70 backdrop-blur-2xl border-b border-white/[0.06] print:hidden">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 flex items-center h-14 gap-6">
         {/* Logo */}
         <Link href="/financials" className="flex-shrink-0">
@@ -31,8 +31,8 @@ export function NavBar() {
                 href={link.href}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
                   active
-                    ? 'bg-black/[0.06] text-gray-900'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-black/[0.04]'
+                    ? 'bg-hexa-purple/15 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-white/[0.05]'
                 }`}
               >
                 {link.label}
@@ -52,7 +52,7 @@ export function NavBar() {
               </span>
               <button
                 onClick={() => signOut({ callbackUrl: '/login' })}
-                className="text-xs text-gray-500 hover:text-gray-700 transition"
+                className="text-xs text-gray-500 hover:text-gray-200 transition"
               >
                 Sign out
               </button>
