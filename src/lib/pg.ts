@@ -4,7 +4,12 @@
  * call gets a connection from the pool and releases it immediately.
  *
  * DATABASE_URL env var format:
- *   postgresql://doadmin:<password>@<host>:25061/financedb-pool?sslmode=require
+ *   postgresql://doadmin:<password>@<host>:25061/financedb-pool?sslmode=no-verify
+ *
+ * Must be sslmode=no-verify, not "require" — current pg-connection-string
+ * versions treat require/prefer/verify-ca as aliases for verify-full, which
+ * rejects DigitalOcean's self-signed CA chain regardless of the explicit
+ * `ssl: { rejectUnauthorized: false }` below.
  */
 
 import { Pool } from 'pg'
