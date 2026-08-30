@@ -54,6 +54,28 @@ export async function pgGet<T>(key: string): Promise<T | null> {
   }
 }
 
+/**
+ * Like pgGet but ignores expiry — returns the last value ever cached under
+ * this key, however old. Used as a last-known-good fallback when a live
+ * refresh fails (e.g. Zoho rate-limited) so users see stale data instead
+ * of a hard error.
+ */
+export async function pgGetStale<T>(key: string): Promise<T | null> {
+  const pool = getPool()
+  if (!pool) return null
+  try {
+    if (!(await ensureTable())) return null
+    const res = await pool.query<{ value: T }>(
+      `SELECT value FROM cache_store WHERE key = $1`,
+      [key]
+    )
+    return res.rows[0]?.value ?? null
+  } catch (err: any) {
+    console.error('[pg-cache] getStale error:', err.message)
+    return null
+  }
+}
+
 export async function pgSet<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
   const pool = getPool()
   if (!pool) return

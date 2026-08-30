@@ -9,7 +9,7 @@
  * virtually always hit the KV cache and see sub-second page loads.
  */
 
-import { pgGet as kvGet, pgSet as kvSet } from './pg-cache'
+import { pgGet as kvGet, pgSet as kvSet, pgGetStale as kvGetStale } from './pg-cache'
 import {
   fetchAllPL,
   fetchAllBS,
@@ -29,6 +29,12 @@ import type {
 // from PostgreSQL between syncs (matches the invoice DB freshness window).
 const TTL_MS      = 7 * 24 * 60 * 60 * 1000  // in-memory L2
 const TTL_SECONDS = 7 * 24 * 60 * 60          // PostgreSQL L1
+
+// When a live fetch comes back broken and we fall back to stale data, we
+// re-cache that stale data for a short window — otherwise every request
+// during an active Zoho throttle would retry the live fetch and add more
+// traffic to an account that's already being blocked, prolonging it.
+const RETRY_BACKOFF_SECONDS = 15 * 60
 
 // ── In-memory L2 cache (per Lambda instance) ──────────────────────────────────
 const plCache  = new Map<string, { data: PLStatement[];            at: number }>()
@@ -63,8 +69,13 @@ async function readThrough<T>(opts: {
   memKey:    string
   force:     boolean
   fetch:     () => Promise<T>
+  // When the live fetch "mostly failed" (e.g. Zoho rate-limited most/all
+  // entities), prefer a last-known-good stale cache entry over showing
+  // the broken result — this is what stops a Zoho throttle from turning
+  // into a hard error on every page load once we have any good snapshot.
+  isBroken?: (data: T) => boolean
 }): Promise<T> {
-  const { kvKey, memCache, memKey, force, fetch } = opts
+  const { kvKey, memCache, memKey, force, fetch, isBroken } = opts
   const now = Date.now()
 
   if (!force) {
@@ -80,9 +91,30 @@ async function readThrough<T>(opts: {
   }
 
   const data = await fetch()
-  await kvSet(kvKey, data, TTL_SECONDS)
+  const broken = isBroken?.(data) ?? false
+
+  if (broken) {
+    const stale = await kvGetStale<T>(kvKey)
+    if (stale !== null && !isBroken!(stale)) {
+      await kvSet(kvKey, stale, RETRY_BACKOFF_SECONDS)
+      memCache.set(memKey, { data: stale, at: now })
+      return stale
+    }
+  }
+
+  // Broken with no usable stale fallback: still cache it, but only briefly —
+  // otherwise a single rate-limited fetch would lock in a broken snapshot
+  // for the full 7-day TTL instead of retrying once the throttle clears.
+  await kvSet(kvKey, data, broken ? RETRY_BACKOFF_SECONDS : TTL_SECONDS)
   memCache.set(memKey, { data, at: now })
   return data
+}
+
+// A live fetch counts as "broken" when more than half the entities failed —
+// that's the signature of an account-wide throttle, not a one-off org issue.
+function majorityErrored(entities: { error?: string }[]): boolean {
+  if (entities.length === 0) return false
+  return entities.filter((e) => e.error).length > entities.length / 2
 }
 
 // ── All-entity fetchers ───────────────────────────────────────────────────────
@@ -98,6 +130,7 @@ export async function getCachedAllPL(
     memKey:   key,
     force,
     fetch:    () => fetchAllPL(period),
+    isBroken: majorityErrored,
   })
 }
 
@@ -112,6 +145,7 @@ export async function getCachedAllBS(
     memKey:   key,
     force,
     fetch:    () => fetchAllBS(period),
+    isBroken: majorityErrored,
   })
 }
 
@@ -126,10 +160,13 @@ export async function getCachedAllCF(
     memKey:   key,
     force,
     fetch:    () => fetchAllCF(period),
+    isBroken: majorityErrored,
   })
 }
 
 // ── Single-entity fetchers ────────────────────────────────────────────────────
+
+const hasError = (data: { error?: string }): boolean => !!data.error
 
 export async function getCachedPL(
   orgId: string,
@@ -143,6 +180,7 @@ export async function getCachedPL(
     memKey:   key,
     force,
     fetch:    () => fetchPLStatement(orgId, period),
+    isBroken: hasError,
   })
 }
 
@@ -158,6 +196,7 @@ export async function getCachedBS(
     memKey:   key,
     force,
     fetch:    () => fetchBSStatement(orgId, period),
+    isBroken: hasError,
   })
 }
 
@@ -173,6 +212,7 @@ export async function getCachedCF(
     memKey:   key,
     force,
     fetch:    () => fetchCFStatement(orgId, period),
+    isBroken: hasError,
   })
 }
 
