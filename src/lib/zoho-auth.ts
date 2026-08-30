@@ -1,4 +1,5 @@
 import type { ZohoTokenResponse } from '@/types'
+import { pgGet, pgSet } from './pg-cache'
 
 // In-memory token cache (per serverless instance)
 let cachedToken: string | null = null
@@ -12,9 +13,22 @@ const DC = process.env.ZOHO_DC || 'com'
 const TOKEN_URL = `https://accounts.zoho.${DC}/oauth/v2/token`
 const BOOKS_BASE = `https://www.zohoapis.${DC}/books/v3`
 
+// Shared across every Lambda instance/route via Postgres — each serverless
+// function otherwise starts with an empty in-memory cache, so without this
+// every PL/BS/CF/sync invocation refreshed its own token concurrently and
+// tripped Zoho's "too many requests continuously" limit on the OAuth endpoint.
+const SHARED_TOKEN_KEY = 'zoho:access_token'
+
+interface SharedToken {
+  token: string
+  expiresAt: number
+}
+
 /**
  * Returns a valid Zoho access token, refreshing if needed.
  * - Deduplicates concurrent calls within one serverless instance.
+ * - Shares the token across instances via Postgres so only one instance
+ *   per ~hour actually calls Zoho's OAuth endpoint.
  * - Retries up to 3 times with exponential backoff on rate-limit errors
  *   (Zoho returns 400 "too many requests" when the OAuth endpoint is hit
  *   by multiple serverless instances simultaneously).
@@ -34,6 +48,13 @@ export async function getAccessToken(): Promise<string> {
 
   refreshPromise = (async () => {
     try {
+      // Another instance may already have a fresh token cached in Postgres
+      const shared = await pgGet<SharedToken>(SHARED_TOKEN_KEY)
+      if (shared && now < shared.expiresAt - 60_000) {
+        cachedToken = shared.token
+        tokenExpiry = shared.expiresAt
+        return cachedToken
+      }
       return await refreshWithRetry()
     } finally {
       refreshPromise = null
@@ -48,8 +69,17 @@ async function refreshWithRetry(maxAttempts = 4): Promise<string> {
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (attempt > 0) {
-      // Exponential backoff: 1s, 2s, 4s
-      await sleep(1000 * Math.pow(2, attempt - 1))
+      // Exponential backoff with jitter: ~1-1.5s, ~2-2.5s, ~4-4.5s — jitter
+      // keeps concurrent instances from retrying in lockstep and re-colliding.
+      await sleep(1000 * Math.pow(2, attempt - 1) + Math.random() * 500)
+
+      // Another instance may have refreshed and cached a token while we waited
+      const shared = await pgGet<SharedToken>(SHARED_TOKEN_KEY)
+      if (shared && Date.now() < shared.expiresAt - 60_000) {
+        cachedToken = shared.token
+        tokenExpiry = shared.expiresAt
+        return cachedToken
+      }
     }
 
     try {
@@ -84,6 +114,9 @@ async function refreshWithRetry(maxAttempts = 4): Promise<string> {
 
       cachedToken = data.access_token
       tokenExpiry = Date.now() + data.expires_in * 1000
+      // Share with every other Lambda instance/route so they don't each
+      // refresh independently and trip Zoho's concurrent-request limit.
+      await pgSet(SHARED_TOKEN_KEY, { token: cachedToken, expiresAt: tokenExpiry } as SharedToken, Math.max(60, data.expires_in - 60))
       return cachedToken
     } catch (err: any) {
       // Only retry on rate-limit-style errors
