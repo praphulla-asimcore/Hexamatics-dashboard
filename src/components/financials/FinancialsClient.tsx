@@ -15,6 +15,7 @@ import {
 } from '@/lib/financial-analytics'
 import { getFinancialPeriodLabel } from '@/lib/financial-period'
 import { onRefresh, dispatchRefresh, bumpDataVersion } from '@/lib/refresh-event'
+import { BoardReportView } from './BoardReportView'
 import type {
   FinancialPeriod, PLStatement, BalanceSheetStatement, CashFlowStatement,
   ConsolidatedPL, ConsolidatedBS, ConsolidatedCF, FSLineItem, CFOInsight,
@@ -1233,6 +1234,7 @@ export function FinancialsClient() {
   })
   const [activeTab, setActiveTab] = useState<TabType>('pl')
   const [view, setView] = useState<ViewMode>('consolidated')
+  const [showBoardReport, setShowBoardReport] = useState(false)
 
   // Consolidated data (view === 'consolidated')
   const [plConsolidated, setPLConsolidated] = useState<ConsolidatedPL | null>(null)
@@ -1676,6 +1678,10 @@ export function FinancialsClient() {
               <span className={syncing ? 'animate-spin inline-block' : ''}>↻</span>
               {syncing ? ' Syncing…' : ' Sync Now'}
             </button>
+            <button onClick={() => setShowBoardReport((v) => !v)}
+              className={showBoardReport ? 'btn-3d-secondary px-3 py-1.5 rounded-lg text-xs font-semibold' : 'px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-hexa-gradient'}>
+              {showBoardReport ? '← Back to Statements' : '📋 Board Report'}
+            </button>
             <button onClick={handlePrint}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold text-white bg-hexa-gradient">
               ⤓ Download PDF
@@ -1686,6 +1692,10 @@ export function FinancialsClient() {
         {/* Period Selector */}
         <div className="print:hidden"><PeriodSelector period={period} onChange={handlePeriodChange} /></div>
 
+        {showBoardReport ? (
+          <BoardReportView period={period} />
+        ) : (
+        <>
         {/* Entity Selector */}
         <div className="flex flex-wrap gap-1.5 print:hidden">
           <button onClick={() => handleViewChange('consolidated')}
@@ -1837,6 +1847,8 @@ export function FinancialsClient() {
               </div>
             )}
           </div>
+        )}
+        </>
         )}
       </div>
     </>
