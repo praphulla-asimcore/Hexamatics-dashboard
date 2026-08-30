@@ -19,6 +19,51 @@ import type { ZohoInvoice, OrgConfig } from '@/types'
 
 export type SyncMode = 'full' | 'incremental'
 
+// ── Schema bootstrap ──────────────────────────────────────────────────────────
+// synced_invoices/sync_state had no creation DDL anywhere in the repo — they
+// only existed because someone ran a one-off SQL script against the current
+// database. A fresh/disposable database would have runSync() fail outright.
+// Idempotent + cached per Lambda instance, mirroring pg-cache.ts's pattern.
+let syncTablesReady = false
+
+async function ensureSyncTables(): Promise<void> {
+  if (syncTablesReady) return
+  const pool = getPool()
+  if (!pool) return
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS synced_invoices (
+      invoice_id    TEXT        NOT NULL,
+      org_id        TEXT        NOT NULL,
+      customer_name TEXT        NOT NULL,
+      customer_type TEXT        NOT NULL,
+      date          DATE        NOT NULL,
+      due_date      DATE,
+      status        TEXT        NOT NULL,
+      total         NUMERIC     NOT NULL,
+      balance       NUMERIC     NOT NULL,
+      currency      TEXT        NOT NULL,
+      synced_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY (org_id, invoice_id)
+    )
+  `)
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_synced_invoices_date ON synced_invoices (date)
+  `)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sync_state (
+      org_id        TEXT        PRIMARY KEY,
+      org_name      TEXT        NOT NULL,
+      last_synced   TIMESTAMPTZ,
+      invoice_count INTEGER,
+      status        TEXT        NOT NULL,
+      error         TEXT
+    )
+  `)
+
+  syncTablesReady = true
+}
+
 interface SyncResult {
   orgId:   string
   orgName: string
@@ -149,6 +194,8 @@ async function syncOrg(org: OrgConfig, from: string, to: string): Promise<SyncRe
 // ── Main sync entry point ─────────────────────────────────────────────────────
 
 export async function runSync(mode: SyncMode = 'incremental'): Promise<SyncResult[]> {
+  await ensureSyncTables()
+
   const now  = new Date()
   const to   = now.toISOString().slice(0, 10)
   const from = mode === 'full'
