@@ -20,11 +20,10 @@ export const COUNTRY_LABELS: Record<string, string> = {
   PH: 'Philippines',
   MM: 'Myanmar',
   NP: 'Nepal',
-  BD: 'Bangladesh',
 }
 
 // Fixed display order for the matrix axes
-const COUNTRY_ORDER = ['MY', 'SG', 'ID', 'PH', 'MM', 'NP', 'BD']
+const COUNTRY_ORDER = ['MY', 'SG', 'ID', 'PH', 'MM', 'NP']
 
 /**
  * Maps an interco counterparty customer name to its country code.
@@ -40,7 +39,6 @@ export function getCounterpartyCountry(customerName: string): string | null {
   if (n.includes('info tech') || n.includes('infotech')) return 'ID'
   if (n.includes('consulting inc'))      return 'PH' // Hexamatics Consulting Inc
   if (n.includes('myanmar'))             return 'MM'
-  if (n.includes('bangladesh'))          return 'BD'
   if (n.includes('nepal'))               return 'NP'
   return null
 }

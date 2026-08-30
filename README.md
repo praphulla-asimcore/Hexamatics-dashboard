@@ -1,14 +1,14 @@
 # Hexamatics Group — Finance Dashboard
 
 Live multi-entity financial dashboard powered by Zoho Books, built with Next.js 14 + Vercel.
-Auto-refreshes every 30 minutes via Vercel Cron. Covers 9 Hexamatics Group entities.
+Auto-refreshes daily via Vercel Cron. Covers 8 Hexamatics Group entities.
 
 ---
 
 ## Features
 
-- **Live Zoho Books data** across 9 entities (MY, SG, NP, ID, PH, MM, BD)
-- **Auto-refresh every 30 min** via Vercel Cron — no manual action needed
+- **Live Zoho Books data** across 8 entities (MY ×3, SG, NP, ID, PH, MM)
+- **Auto-refresh daily** via Vercel Cron — no manual action needed
 - **4 dashboard views**: Overview · Collections & AR Aging · Entity Detail · Top Customers
 - **Board view** (`/board`) — dark-mode simplified view for T1/T2, password-protected
 - **MYR consolidation** — all entities normalised to MYR equivalent for group-level reporting
@@ -85,7 +85,7 @@ After setting variables: **Vercel → Deployments → Redeploy**
 
 ### Step 5: Verify the Cron
 
-The cron job (`vercel.json`) runs every 30 minutes automatically.
+The cron job (`vercel.json`) runs daily automatically.
 To verify: **Vercel Dashboard → Your Project → Cron Jobs** tab.
 
 ---
