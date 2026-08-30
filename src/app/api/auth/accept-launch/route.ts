@@ -65,10 +65,9 @@ window.location.replace(${JSON.stringify(authCompleteUrl)} + '#' + t);
     })
   } catch (err) {
     console.error('[accept-launch] Failed:', err)
-    const msg = err instanceof Error ? err.message : String(err)
     return new NextResponse(
-      `<html><body><h2>accept-launch failed</h2><pre>${msg}</pre><p>Secret prefix: ${process.env.NEXTAUTH_SECRET?.slice(0, 8)}</p></body></html>`,
-      { status: 200, headers: { 'Content-Type': 'text/html' } }
+      `<html><body><h2>Sign-in failed</h2><p>The launch link is invalid or expired. Please try signing in again.</p></body></html>`,
+      { status: 400, headers: { 'Content-Type': 'text/html' } }
     )
   }
 }

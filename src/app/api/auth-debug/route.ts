@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decode } from 'next-auth/jwt'
 import { jwtVerify } from 'jose'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+  }
+
   const cookieHeader = req.headers.get('cookie') ?? ''
   const cookieNames = cookieHeader.split(';').map(c => c.trim().split('=')[0]).filter(Boolean)
 
@@ -47,6 +54,5 @@ export async function GET(req: NextRequest) {
       emptySalt: !!suiteTokenEmptySalt,
       jws: !!suiteTokenJws,
     },
-    secret_prefix: secret.slice(0, 32),
   })
 }

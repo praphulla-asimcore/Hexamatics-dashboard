@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server'
 import { getCachedAllPL, getCachedAllBS, getCachedAllCF } from '@/lib/financial-cache'
 import { getCachedDashboard } from '@/lib/cache'
 import { pgPurgeExpired } from '@/lib/pg-cache'
+import { isValidCronSecret } from '@/lib/cron-auth'
 import type { FinancialPeriod } from '@/types/financials'
 import type { PeriodDef } from '@/types'
 
@@ -23,7 +24,7 @@ export const maxDuration = 300 // 5 min — enough for 27 sequential Zoho calls
 export async function GET(request: Request) {
   // Verify the request is from Vercel Cron (or an authorised caller)
   const auth = request.headers.get('authorization')
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isValidCronSecret(auth)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

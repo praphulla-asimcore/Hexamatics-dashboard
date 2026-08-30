@@ -14,11 +14,16 @@
  *   mode=incremental (default) | full
  *   scope=all (default) | invoices | financials
  *
- * Auth: logged-in session OR Bearer CRON_SECRET (for the daily cron).
+ * Auth:
+ *   POST — logged-in session OR Bearer CRON_SECRET
+ *   GET  — Bearer CRON_SECRET only (Vercel Cron always calls via GET; a
+ *          session must never be enough here, or any page a logged-in user
+ *          visits could trigger a full sync via a plain <img>/<a> GET)
  */
 
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
+import { isValidCronSecret } from '@/lib/cron-auth'
 import { runSync, SyncMode } from '@/lib/zoho-sync'
 import { getCachedAllPL, getCachedAllBS, getCachedAllCF } from '@/lib/financial-cache'
 import type { FinancialPeriod } from '@/types/financials'
@@ -56,13 +61,7 @@ async function warmFinancials(): Promise<string[]> {
   return warmed
 }
 
-export async function POST(req: Request) {
-  const auth    = req.headers.get('authorization')
-  const session = await getSession()
-  if (!session && auth !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+async function runSyncRequest(req: Request) {
   const sp    = new URL(req.url).searchParams
   const mode  = (sp.get('mode')  ?? 'incremental') as SyncMode
   const scope = (sp.get('scope') ?? 'all') as 'all' | 'invoices' | 'financials'
@@ -96,6 +95,22 @@ export async function POST(req: Request) {
   })
 }
 
+export async function POST(req: Request) {
+  const auth    = req.headers.get('authorization')
+  const session = await getSession()
+  if (!session && !isValidCronSecret(auth)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  return runSyncRequest(req)
+}
+
+// Vercel Cron always calls via GET — restrict this path to the cron secret
+// only, never a session, so a logged-in user's browser can't be tricked
+// into triggering a sync via a bare link/image request.
 export async function GET(req: Request) {
-  return POST(req)
+  const auth = req.headers.get('authorization')
+  if (!isValidCronSecret(auth)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  return runSyncRequest(req)
 }

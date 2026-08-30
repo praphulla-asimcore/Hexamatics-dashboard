@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCachedDashboard, invalidateCache } from '@/lib/cache'
 import { getDefaultPeriod } from '@/lib/zoho-data'
+import { isValidCronSecret } from '@/lib/cron-auth'
 
 export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
-  const expected = `Bearer ${process.env.CRON_SECRET}`
 
-  if (process.env.NODE_ENV === 'production' && authHeader !== expected) {
+  if (!isValidCronSecret(authHeader)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

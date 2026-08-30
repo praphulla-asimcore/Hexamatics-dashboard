@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 
 const DC = process.env.ZOHO_DC || 'com'
 
 /**
- * One-time OAuth flow to obtain your refresh_token.
+ * One-time OAuth flow to obtain your refresh_token. Admin-only: this page
+ * renders a live Zoho refresh_token into the response, so it must never be
+ * reachable by an unauthenticated visitor.
  *
  * Step 1: Visit this URL in your browser (replace YOUR_DOMAIN):
  *   https://accounts.zoho.com/oauth/v2/auth
@@ -21,6 +25,11 @@ const DC = process.env.ZOHO_DC || 'com'
  * You only need to do this ONCE.
  */
 export async function GET(req: NextRequest) {
+  const session = await getServerSession(authOptions)
+  if (!session || (session.user as any)?.role !== 'admin') {
+    return NextResponse.json({ error: 'Admin only' }, { status: 403 })
+  }
+
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
 
