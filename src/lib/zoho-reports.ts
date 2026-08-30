@@ -26,12 +26,17 @@ import type {
 
 // ─── Period date helpers ──────────────────────────────────────────────────────
 
+const MIN_FINANCIAL_DATE = '2023-01-01'
+
 export function getFinancialDateRange(period: FinancialPeriod): { from: string; to: string } {
   const { mode, year, month, quarter, half } = period
   const now = new Date()
+  const maxDate = now.toISOString().slice(0, 10)
 
   if (period.mode === 'custom' && period.customFrom && period.customTo) {
-    return { from: period.customFrom, to: period.customTo }
+    const from = period.customFrom < MIN_FINANCIAL_DATE ? MIN_FINANCIAL_DATE : period.customFrom
+    const to = period.customTo > maxDate ? maxDate : period.customTo
+    return { from, to }
   }
 
   if (mode === 'month' && month) {

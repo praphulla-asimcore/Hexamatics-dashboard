@@ -77,7 +77,14 @@ function PeriodSelector({
 }: { period: FinancialPeriod; onChange: (p: FinancialPeriod) => void }) {
   const now = new Date()
   const currentYear = now.getFullYear()
-  const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
+  const currentMonth = now.getMonth() + 1
+  const MIN_YEAR = 2023
+  const MIN_DATE = '2023-01-01'
+  const MAX_DATE = now.toISOString().slice(0, 10)
+  const years = Array.from({ length: currentYear - MIN_YEAR + 1 }, (_, i) => currentYear - i)
+  const maxMonth   = period.year === currentYear ? currentMonth : 12
+  const maxQuarter = period.year === currentYear ? (Math.ceil(currentMonth / 3) as 1|2|3|4) : 4
+  const maxHalf: 1|2 = (period.year === currentYear && currentMonth <= 6) ? 1 : 2
 
   const [customFrom, setCustomFrom] = useState(period.customFrom ?? '')
   const [customTo,   setCustomTo]   = useState(period.customTo   ?? '')
@@ -117,7 +124,7 @@ function PeriodSelector({
           <select value={period.month ?? now.getMonth() + 1}
             onChange={(e) => onChange({ ...period, month: parseInt(e.target.value) })}
             className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple">
-            {MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+            {MONTHS.slice(0, maxMonth).map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
           </select>
         )}
 
@@ -125,8 +132,8 @@ function PeriodSelector({
         {period.mode === 'quarter' && (
           <div className="flex gap-0.5 bg-black/[0.04] rounded-xl p-1">
             {([1,2,3,4] as const).map((q) => (
-              <button key={q} onClick={() => onChange({ ...period, quarter: q })}
-                className={period.quarter === q ? btnActive : btnInactive}>
+              <button key={q} disabled={q > maxQuarter} onClick={() => onChange({ ...period, quarter: q })}
+                className={period.quarter === q ? btnActive : `${btnInactive} disabled:opacity-30 disabled:cursor-not-allowed`}>
                 Q{q}
               </button>
             ))}
@@ -137,8 +144,8 @@ function PeriodSelector({
         {period.mode === 'half' && (
           <div className="flex gap-0.5 bg-black/[0.04] rounded-xl p-1">
             {([1,2] as const).map((h) => (
-              <button key={h} onClick={() => onChange({ ...period, half: h })}
-                className={period.half === h ? btnActive : btnInactive}>
+              <button key={h} disabled={h > maxHalf} onClick={() => onChange({ ...period, half: h })}
+                className={period.half === h ? btnActive : `${btnInactive} disabled:opacity-30 disabled:cursor-not-allowed`}>
                 H{h}
               </button>
             ))}
@@ -152,14 +159,16 @@ function PeriodSelector({
               <span className="text-xs text-gray-500 font-medium">From</span>
               <input type="date" value={customFrom}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                max={customTo || undefined}
+                min={MIN_DATE}
+                max={customTo || MAX_DATE}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple" />
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500 font-medium">To</span>
               <input type="date" value={customTo}
                 onChange={(e) => setCustomTo(e.target.value)}
-                min={customFrom || undefined}
+                min={customFrom || MIN_DATE}
+                max={MAX_DATE}
                 className="rounded-lg px-3 py-1.5 text-xs font-medium border border-black/[0.10] bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-hexa-purple" />
             </div>
             <button onClick={applyCustom} disabled={!customFrom || !customTo}

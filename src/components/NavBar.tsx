@@ -6,8 +6,6 @@ import { signOut, useSession } from 'next-auth/react'
 import { HexaLogo } from '@/components/HexaLogo'
 
 const NAV_LINKS = [
-  { href: '/executive',   label: 'Executive Summary' },
-  { href: '/dashboard',   label: 'AR Dashboard' },
   { href: '/financials',  label: 'Financial Statements' },
 ]
 
@@ -19,7 +17,7 @@ export function NavBar() {
     <nav className="sticky top-0 z-50 bg-white/70 backdrop-blur-2xl border-b border-black/[0.07] print:hidden">
       <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 flex items-center h-14 gap-6">
         {/* Logo */}
-        <Link href="/dashboard" className="flex-shrink-0">
+        <Link href="/financials" className="flex-shrink-0">
           <HexaLogo className="h-7" />
         </Link>
 
