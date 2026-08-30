@@ -85,3 +85,101 @@ function pad(n: number): string {
 function lastDay(year: number, month: number): string {
   return String(new Date(year, month, 0).getDate())
 }
+
+// ─── Query-param parsing + validation ──────────────────────────────────────
+// Shared by the pl/bs/cf API routes (previously each route duplicated an
+// unvalidated version of this — a bad `year`/`month`/`quarter`/`half` or an
+// inverted/out-of-range custom range could reach getFinancialDateRange as
+// NaN or nonsensical values instead of being rejected with a clear 4xx).
+
+const VALID_MODES = ['month', 'quarter', 'half', 'year', 'custom'] as const
+const VALID_COMPARISONS = ['previous', 'yoy', 'none'] as const
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const MIN_FINANCIAL_YEAR = 2023
+
+export function parsePeriodFromParams(
+  sp: URLSearchParams
+): { period: FinancialPeriod; error?: undefined } | { period?: undefined; error: string } {
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  const maxDate = now.toISOString().slice(0, 10)
+
+  const modeRaw = sp.get('mode') ?? 'month'
+  if (!(VALID_MODES as readonly string[]).includes(modeRaw)) {
+    return { error: `Invalid mode "${modeRaw}"; expected one of ${VALID_MODES.join(', ')}` }
+  }
+  const mode = modeRaw as FinancialPeriod['mode']
+
+  const comparisonRaw = sp.get('comparison') ?? 'previous'
+  if (!(VALID_COMPARISONS as readonly string[]).includes(comparisonRaw)) {
+    return { error: `Invalid comparison "${comparisonRaw}"; expected one of ${VALID_COMPARISONS.join(', ')}` }
+  }
+  const comparison = comparisonRaw as FinancialPeriod['comparison']
+
+  if (mode === 'custom') {
+    const customFrom = sp.get('customFrom') ?? undefined
+    const customTo = sp.get('customTo') ?? undefined
+    if (!customFrom || !customTo) {
+      return { error: 'customFrom and customTo are both required for mode=custom' }
+    }
+    if (!ISO_DATE.test(customFrom) || !ISO_DATE.test(customTo)) {
+      return { error: 'customFrom/customTo must be YYYY-MM-DD' }
+    }
+    if (customFrom > customTo) {
+      return { error: 'customFrom must not be after customTo' }
+    }
+    if (customFrom < MIN_FINANCIAL_DATE || customTo > maxDate) {
+      return { error: `customFrom/customTo must fall within ${MIN_FINANCIAL_DATE} and ${maxDate}` }
+    }
+    const year = parseInt(customFrom.slice(0, 4), 10)
+    return { period: { mode, year, comparison, customFrom, customTo } }
+  }
+
+  const yearRaw = sp.get('year') ?? String(currentYear)
+  const year = parseInt(yearRaw, 10)
+  if (!Number.isFinite(year) || String(year) !== yearRaw.trim() || year < MIN_FINANCIAL_YEAR || year > currentYear) {
+    return { error: `year must be an integer between ${MIN_FINANCIAL_YEAR} and ${currentYear}` }
+  }
+
+  if (mode === 'month') {
+    const monthRaw = sp.get('month') ?? String(currentMonth)
+    const month = parseInt(monthRaw, 10)
+    if (!Number.isFinite(month) || month < 1 || month > 12) {
+      return { error: 'month must be an integer between 1 and 12' }
+    }
+    if (year === currentYear && month > currentMonth) {
+      return { error: 'month is in the future' }
+    }
+    return { period: { mode, year, month, comparison } }
+  }
+
+  if (mode === 'quarter') {
+    const quarterRaw = sp.get('quarter') ?? '1'
+    const quarter = parseInt(quarterRaw, 10)
+    if (![1, 2, 3, 4].includes(quarter)) {
+      return { error: 'quarter must be 1, 2, 3, or 4' }
+    }
+    const maxQuarter = year === currentYear ? Math.ceil(currentMonth / 3) : 4
+    if (quarter > maxQuarter) {
+      return { error: 'quarter is in the future' }
+    }
+    return { period: { mode, year, quarter: quarter as 1 | 2 | 3 | 4, comparison } }
+  }
+
+  if (mode === 'half') {
+    const halfRaw = sp.get('half') ?? '1'
+    const half = parseInt(halfRaw, 10)
+    if (![1, 2].includes(half)) {
+      return { error: 'half must be 1 or 2' }
+    }
+    const maxHalf = year === currentYear && currentMonth <= 6 ? 1 : 2
+    if (half > maxHalf) {
+      return { error: 'half is in the future' }
+    }
+    return { period: { mode, year, half: half as 1 | 2, comparison } }
+  }
+
+  // mode === 'year'
+  return { period: { mode, year, comparison } }
+}

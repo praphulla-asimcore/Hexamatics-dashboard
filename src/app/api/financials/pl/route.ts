@@ -5,33 +5,19 @@ import {
   buildConsolidatedPL,
   generatePLInsights,
 } from '@/lib/financial-analytics'
-import {
-  getFinancialDateRange,
-  getFinancialPeriodLabel,
-} from '@/lib/zoho-reports'
-import type { FinancialPeriod } from '@/types/financials'
+import { getFinancialPeriodLabel, parsePeriodFromParams } from '@/lib/financial-period'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // seconds — bulk fetch can take 20-50 s cold
-
-function parsePeriod(sp: URLSearchParams): FinancialPeriod {
-  const mode = (sp.get('mode') ?? 'month') as FinancialPeriod['mode']
-  const year = parseInt(sp.get('year') ?? String(new Date().getFullYear()))
-  const month = sp.has('month') ? parseInt(sp.get('month')!) : undefined
-  const quarter = sp.has('quarter') ? (parseInt(sp.get('quarter')!) as 1|2|3|4) : undefined
-  const half = sp.has('half') ? (parseInt(sp.get('half')!) as 1|2) : undefined
-  const comparison = (sp.get('comparison') ?? 'previous') as FinancialPeriod['comparison']
-  const customFrom = sp.get('customFrom') ?? undefined
-  const customTo = sp.get('customTo') ?? undefined
-  return { mode, year, month, quarter, half, comparison, customFrom, customTo }
-}
 
 export async function GET(req: Request) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const sp = new URL(req.url).searchParams
-  const period = parsePeriod(sp)
+  const parsed = parsePeriodFromParams(sp)
+  if (!parsed.period) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  const period = parsed.period
   const orgId = sp.get('orgId') // null → all entities
   const force = sp.get('force') === '1'
 
